@@ -1,0 +1,2869 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for native stock_by_inventory .xls / .xlsx / .csv parsing & export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e2e',
+              950: '#0a0f1a'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* TC56 PDA & Mobile Ergonomics: prevent auto-zoom on focus & smooth scrolling */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      width: 100%;
+    }
+    input, select, textarea {
+      font-size: 16px;
+      max-width: 100%;
+    }
+    @media (min-width: 768px) {
+      input, select, textarea {
+        font-size: 0.875rem;
+      }
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+    .scan-flash-ok { animation: flashOk 0.45s ease-out; }
+    .scan-flash-warn { animation: flashWarn 0.45s ease-out; }
+    @keyframes flashOk {
+      0% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.55); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @keyframes flashWarn {
+      0% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.55); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+
+    /* Guarantee native text selection & copy inside Live Pallet Audit Ledger */
+    #ledger-panel, #ledger-panel * {
+      -webkit-user-select: text !important;
+      user-select: text !important;
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      #report-print-area, #report-print-area * { visibility: visible; }
+      #report-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        padding: 0 !important;
+      }
+      .no-print { display: none !important; }
+      table { border-collapse: collapse !important; width: 100% !important; font-size: 11px !important; }
+      th, td { border: 1px solid #cbd5e1 !important; padding: 6px 8px !important; color: #0f172a !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-150 selection:bg-indigo-600 selection:text-white">
+
+  <!-- Toast Container (Replaces alert()) -->
+  <div id="toast-container" class="fixed bottom-3 right-3 z-50 flex flex-col gap-2 max-w-sm w-[calc(100%-1.5rem)] sm:w-full pointer-events-none"></div>
+
+  <!-- Top Navigation & Warehouse Selector Header (Auto-sizing for TC56 360px PDA) -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-sm no-print">
+    <div class="max-w-[1600px] mx-auto px-2.5 sm:px-6 py-1.5 sm:py-2 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+      <!-- Brand + Active Source + Warehouse Selector -->
+      <div class="flex items-center gap-2 min-w-0 flex-1">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 12h10"></path>
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <h1 class="font-extrabold text-xs sm:text-base tracking-tight text-white">CycleCount<span class="text-indigo-400">Pro</span> <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 align-middle">v2</span></h1>
+            <select id="header-wh-select" title="Active Warehouse ID (warehouseId)" class="bg-slate-800 text-indigo-300 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-700 focus:outline-none max-w-[115px] sm:max-w-none">
+              <option value="ONUS-ONT">ONUS-ONT</option>
+            </select>
+            <span id="header-cloud-sync-badge" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+              <span id="header-cloud-sync-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span id="header-cloud-sync-text">Sheet Auto-Sync</span>
+            </span>
+            <span id="header-source-badge" class="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700 truncate max-w-[190px]">
+              stock_by_inventory Sample
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar Buttons (Auto-sized touch targets that never overlap on TC56) -->
+      <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <!-- Import Report -->
+        <button id="open-import-btn" type="button" title="Import Report" class="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition min-h-[34px] sm:min-h-[38px]">
+          <svg class="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+          <span class="hidden sm:inline">Import</span>
+        </button>
+
+        <!-- WMS API Connector -->
+        <button id="open-wms-btn" type="button" class="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition min-h-[34px] sm:min-h-[38px]">
+          <span id="header-auth-dot" class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+          <span>API</span>
+        </button>
+
+        <!-- Final Report -->
+        <button id="open-report-btn" type="button" class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition min-h-[34px] sm:min-h-[38px]">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <span>Report</span>
+        </button>
+
+        <!-- Sound Toggle -->
+        <button id="toggle-sound-btn" type="button" title="Toggle Scanner Beep" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center">
+          <svg id="sound-on-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+          <svg id="sound-off-icon" class="w-4 h-4 hidden text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="toggle-theme-btn" type="button" title="Toggle Light/Dark Mode" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center">
+          <svg class="w-4 h-4 hidden dark:block text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          <svg class="w-4 h-4 block dark:hidden text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-6 py-2 sm:py-4 space-y-2.5 sm:space-y-3 no-print">
+
+    <!-- FIRST SECTION (TC56 PDA One-Screen Ergonomics): Scanner Console & Physical Count Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 items-start">
+
+      <!-- 1. Scanner Mode Switcher + Barcode Input Card -->
+      <div id="scanner-console-card" class="lg:col-span-5 min-w-0 bg-white dark:bg-slate-900 rounded-2xl p-2.5 sm:p-4 border-2 border-indigo-500/40 shadow-md space-y-2">
+        <!-- Mode Toggle Tabs -->
+        <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+          <button id="mode-lp-btn" type="button" class="py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-600 text-white shadow-sm transition min-h-[36px] truncate">
+            1. Scan Pallet LP
+          </button>
+          <button id="mode-nolp-btn" type="button" class="py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800 transition min-h-[36px] truncate">
+            2. No LP — Scan Item
+          </button>
+        </div>
+
+        <!-- MODE A: SCAN PALLET LICENSE PLATE (LP) -->
+        <div id="lp-scanner-section" class="space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 truncate">Scan Pallet LP</span>
+            <span class="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0" id="tc56-compact-progress">0/0 Audited</span>
+          </div>
+          <form id="lp-scan-form" class="flex gap-1.5 min-w-0">
+            <div class="relative flex-1 min-w-0">
+              <input id="lp-scan-input" type="text" autocomplete="off" autocapitalize="characters" enterkeyhint="next" autofocus
+                placeholder="Scan LP..."
+                class="w-full pl-2.5 pr-7 py-2 rounded-xl font-mono text-sm sm:text-base font-bold uppercase bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:outline-none min-h-[42px]" />
+              <button id="clear-lp-input-btn" type="button" title="Clear" class="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            <button type="submit" class="px-3.5 sm:px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-sm transition min-h-[42px] shrink-0">
+              Scan
+            </button>
+          </form>
+
+          <!-- Quick-Tap Uncounted LP Chips -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Pending LPs:</span>
+              <button id="next-pending-lp-btn" type="button" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Next Pending &rarr;</button>
+            </div>
+            <div id="quick-lp-chips" class="flex flex-wrap gap-1"></div>
+          </div>
+        </div>
+
+        <!-- MODE B: NO LP PALLET — SCAN ITEM BARCODE -> LOCATION -> QTY -->
+        <div id="nolp-scanner-section" class="hidden space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Missing-LP Pallet Entry</span>
+            <span class="text-[11px] font-mono text-slate-400">Item &rarr; Loc &rarr; Qty</span>
+          </div>
+
+          <!-- Step 1: Scan Item Barcode / SKU / Name -->
+          <form id="nolp-item-scan-form" class="space-y-1">
+            <label for="nolp-item-input" class="text-xs font-semibold text-slate-700 dark:text-slate-300 block">1. Scan Item Barcode / SKU / Name</label>
+            <div class="flex gap-1.5">
+              <input id="nolp-item-input" type="text" list="sku-catalog-datalist" autocomplete="off" enterkeyhint="next"
+                placeholder="Scan UPC, SKU, or Name..."
+                class="flex-1 min-w-0 px-3 py-2 rounded-xl font-mono text-sm font-semibold bg-slate-50 dark:bg-slate-850 border-2 border-purple-400/60 dark:border-purple-600/60 focus:border-purple-600 focus:outline-none min-h-[42px]" />
+              <button type="submit" class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs min-h-[42px] shrink-0">
+                Select
+              </button>
+            </div>
+            <datalist id="sku-catalog-datalist"></datalist>
+          </form>
+
+          <!-- SKU System Stock Summary Banner (when item matched) -->
+          <div id="nolp-sku-summary-box" class="hidden p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 space-y-1">
+            <div class="flex items-center justify-between gap-2">
+              <span id="nolp-matched-sku" class="font-mono text-xs font-extrabold text-purple-700 dark:text-purple-300">SKU</span>
+              <span id="nolp-known-bays" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">Bays: --</span>
+            </div>
+            <div id="nolp-matched-desc" class="text-xs font-semibold text-slate-800 dark:text-slate-100">Item Description</div>
+            <div class="grid grid-cols-3 gap-1.5 pt-0.5 text-center">
+              <div class="bg-white dark:bg-slate-900 rounded-lg p-1 border border-purple-100 dark:border-purple-900/50">
+                <span class="text-[10px] text-slate-400 block">Sys Actual</span>
+                <span id="nolp-sys-actual" class="font-mono text-xs font-bold">0</span>
+              </div>
+              <div class="bg-white dark:bg-slate-900 rounded-lg p-1 border border-purple-100 dark:border-purple-900/50">
+                <span class="text-[10px] text-slate-400 block">Allocation</span>
+                <span id="nolp-sys-alloc" class="font-mono text-xs font-bold text-amber-600">0</span>
+              </div>
+              <div class="bg-white dark:bg-slate-900 rounded-lg p-1 border border-purple-100 dark:border-purple-900/50">
+                <span class="text-[10px] text-slate-400 block">Remaining</span>
+                <span id="nolp-sys-rem" class="font-mono text-xs font-bold text-sky-600">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 & 3: Location -> Qty -> Save -->
+          <form id="nolp-save-form" class="space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <div class="min-w-0">
+                <label for="nolp-location-input" class="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">2. Store Location</label>
+                <input id="nolp-location-input" type="text" autocomplete="off" autocapitalize="characters" enterkeyhint="next" required
+                  placeholder="e.g. S007"
+                  class="w-full px-3 py-2 rounded-xl font-mono text-sm font-bold uppercase bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none min-h-[42px]" />
+              </div>
+              <div class="min-w-0">
+                <label for="nolp-qty-input" class="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">3. Physical Qty</label>
+                <input id="nolp-qty-input" type="number" inputmode="numeric" min="0" step="1" enterkeyhint="done" required
+                  placeholder="0"
+                  class="w-full px-3 py-2 rounded-xl font-mono text-base font-extrabold text-center bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none min-h-[42px]" />
+              </div>
+            </div>
+
+            <div>
+              <select id="nolp-link-lp-select" class="w-full px-2.5 py-1.5 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none">
+                <option value="">-- Standalone Missing-LP (NO-LP-XXX) --</option>
+              </select>
+            </div>
+
+            <div class="flex gap-1.5">
+              <input id="nolp-notes-input" type="text" placeholder="Optional note..."
+                class="flex-1 min-w-0 px-2.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:outline-none" />
+              <button type="submit" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition min-h-[42px] shrink-0">
+                Save No-LP
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 2. System vs Physical Count Card (Right beside Scanner on Desktop, Immediately below on TC56 PDA) -->
+      <div class="lg:col-span-7 min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div id="comparison-empty-state" class="p-3.5 sm:p-6 text-center flex flex-col items-center justify-center">
+          <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+            <svg class="w-5 h-5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+            <h3 class="text-sm font-bold">Ready for Pallet Scan</h3>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
+            Scan a pallet LP above to display system quantities &amp; enter physical count on one screen.
+          </p>
+        </div>
+
+        <div id="comparison-active-panel" class="hidden">
+          <div class="bg-slate-900 dark:bg-slate-850 text-white px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-800">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span id="comp-lpn" class="font-mono text-sm sm:text-lg font-extrabold tracking-tight">LP000000</span>
+                <span id="comp-wh-tag" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/25 text-indigo-300">WH: ONUS-ONT</span>
+                <span id="comp-inbound-tag" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">INB: --</span>
+                <span id="comp-po-tag" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">PO: --</span>
+              </div>
+              <span id="comp-customer-tag" class="text-[10px] text-slate-400 block truncate">Customer</span>
+            </div>
+            <span id="comp-status-pill" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">PENDING</span>
+          </div>
+
+          <!-- Compact System Record Snapshot -->
+          <div class="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 space-y-2">
+            <div class="grid grid-cols-4 gap-1 sm:gap-1.5 text-center">
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <span class="text-[10px] text-slate-400 block truncate">Sys Loc</span>
+                <span id="comp-sys-loc" class="font-mono text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 block truncate">--</span>
+              </div>
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <span class="text-[10px] text-slate-400 block truncate">Actual</span>
+                <span id="comp-sys-actual" class="font-mono text-xs sm:text-sm font-extrabold text-indigo-600 dark:text-indigo-400 block truncate">0</span>
+              </div>
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <span class="text-[10px] text-slate-400 block truncate">Alloc</span>
+                <span id="comp-sys-alloc" class="font-mono text-xs sm:text-sm font-extrabold text-amber-600 block truncate">0</span>
+              </div>
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <span class="text-[10px] text-slate-400 block truncate">Rem</span>
+                <span id="comp-sys-rem" class="font-mono text-xs sm:text-sm font-extrabold text-sky-600 block truncate">0</span>
+              </div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center justify-between gap-2 min-w-0">
+              <div class="min-w-0 truncate">
+                <span id="comp-sys-sku" class="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 mr-1.5">SKU</span>
+                <span id="comp-sys-name" class="text-xs font-semibold text-slate-700 dark:text-slate-200">Item Name</span>
+              </div>
+              <span id="comp-sys-barcode" class="hidden font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">UPC</span>
+            </div>
+          </div>
+
+          <!-- Physical Count Form (Auto-sized row controls so buttons never overflow TC56 width) -->
+          <form id="lp-count-submit-form" class="p-2.5 sm:p-3.5 space-y-2.5">
+            <div>
+              <div class="flex flex-wrap items-center justify-between gap-1 mb-1">
+                <label for="phys-qty-input" class="text-xs font-bold text-slate-700 dark:text-slate-200">1. Physical Count Qty</label>
+                <div class="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono">
+                  <span id="var-vs-actual-badge" class="px-1.5 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-600">vs Actual: 0</span>
+                  <span id="var-vs-rem-badge" class="px-1.5 py-0.5 rounded font-bold bg-sky-500/15 text-sky-600">vs Rem: 0</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 min-w-0">
+                <button id="qty-minus-btn" type="button" class="px-2.5 sm:px-3 py-2 rounded-xl font-mono text-base font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px] shrink-0">-</button>
+                <input id="phys-qty-input" type="number" inputmode="numeric" min="0" step="1" enterkeyhint="done" required
+                  class="flex-1 min-w-[54px] text-center py-2 rounded-xl font-mono text-base sm:text-lg font-extrabold bg-white dark:bg-slate-850 border-2 border-indigo-500 focus:outline-none min-h-[42px]" />
+                <button id="qty-plus-btn" type="button" class="px-2.5 sm:px-3 py-2 rounded-xl font-mono text-base font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px] shrink-0">+</button>
+                <button id="match-actual-qty-btn" type="button" class="px-1.5 sm:px-2 py-2 rounded-xl text-[10px] sm:text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 min-h-[42px] shrink-0">=Act</button>
+                <button id="match-rem-qty-btn" type="button" class="px-1.5 sm:px-2 py-2 rounded-xl text-[10px] sm:text-[11px] font-bold bg-sky-50 hover:bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 min-h-[42px] shrink-0">=Rem</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div class="min-w-0">
+                <label for="phys-loc-input" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5 truncate">2. Actual Location</label>
+                <input id="phys-loc-input" type="text" autocomplete="off" autocapitalize="characters" required
+                  class="w-full px-2.5 py-2 rounded-xl font-mono text-xs font-bold uppercase bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:outline-none min-h-[40px]" />
+              </div>
+              <div class="min-w-0">
+                <label for="phys-item-input" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5 truncate">3. Observed Item</label>
+                <input id="phys-item-input" type="text" required
+                  class="w-full px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:outline-none min-h-[40px]" />
+              </div>
+            </div>
+
+            <!-- Collapsible Optional Variance Reason & Notes (keeps primary controls visible on one TC56 screen) -->
+            <details class="group rounded-xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 px-2.5 py-1.5">
+              <summary class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none flex items-center justify-between">
+                <span>Optional: Variance Reason &amp; Audit Notes</span>
+                <span class="text-[10px] font-mono group-open:rotate-180 transition-transform">&#9662;</span>
+              </summary>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 pb-1">
+                <div>
+                  <label for="phys-reason-select" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">Variance Reason</label>
+                  <select id="phys-reason-select" class="w-full px-2.5 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
+                    <option value="">None / Exact Match</option>
+                    <option value="Unrecorded Pick">Unrecorded Pick</option>
+                    <option value="Pallet Relocated">Pallet Relocated</option>
+                    <option value="Damaged / Spoilage">Damaged / Spoilage</option>
+                    <option value="Wrong SKU on Pallet">Wrong SKU on Pallet</option>
+                    <option value="Receiving Over/Short">Receiving Over/Short</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="phys-notes-input" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">Notes</label>
+                  <input id="phys-notes-input" type="text" placeholder="Optional audit note..."
+                    class="w-full px-2.5 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+                </div>
+              </div>
+            </details>
+
+            <div class="flex items-center gap-2 pt-0.5">
+              <button type="submit" class="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-sm transition min-h-[42px]">
+                Save Count &amp; Scan Next LP
+              </button>
+              <button id="cancel-comp-btn" type="button" class="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs sm:text-sm min-h-[42px] shrink-0">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECOND SECTION: Compact TC56-Friendly KPI Strip -->
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Audit Progress</span>
+          <span id="kpi-progress-pct" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">0%</span>
+        </div>
+        <div class="mt-1 flex items-baseline justify-between">
+          <span id="kpi-counted-pallets" class="text-xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">0/0</span>
+          <span class="text-[11px] text-slate-400">pallets</span>
+        </div>
+        <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
+          <div id="kpi-progress-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Sys Actual Qty</span>
+        <div class="mt-1 flex items-baseline justify-between">
+          <span id="kpi-sys-actual" class="text-xl font-extrabold font-mono text-slate-800 dark:text-slate-100">0</span>
+          <span class="text-[11px] text-slate-400">units</span>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Allocation Qty</span>
+        <div class="mt-1 flex items-baseline justify-between">
+          <span id="kpi-sys-alloc" class="text-xl font-extrabold font-mono text-amber-600 dark:text-amber-400">0</span>
+          <span class="text-[11px] text-slate-400">booked</span>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Remaining Qty</span>
+        <div class="mt-1 flex items-baseline justify-between">
+          <span id="kpi-sys-rem" class="text-xl font-extrabold font-mono text-sky-600 dark:text-sky-400">0</span>
+          <span class="text-[11px] text-slate-400">avail</span>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Physical Counted</span>
+        <div class="mt-1 flex items-baseline justify-between">
+          <span id="kpi-phys-counted" class="text-xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">0</span>
+          <span class="text-[11px] text-slate-400">counted</span>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Variances</span>
+        <div class="mt-1 flex items-baseline justify-between">
+          <span id="kpi-variances" class="text-xl font-extrabold font-mono text-rose-600 dark:text-rose-400">0</span>
+          <span id="kpi-nolp-badge" class="text-[11px] font-semibold text-purple-600 dark:text-purple-400">0 No-LP</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- THIRD SECTION: Live Pallet Audit Ledger (Supports Text Select, Copy & Paste) -->
+    <div id="ledger-panel" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden select-text">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">Live Pallet Audit Ledger</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Highlight any text + Ctrl+C, click copy icons, or paste an LP/SKU to filter</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="copy-visible-ledger-btn" type="button" title="Copy visible ledger rows (TSV for Excel)" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition shrink-0">
+              Copy Table
+            </button>
+            <div class="relative flex-1 sm:w-56">
+              <input id="ledger-search-input" type="text" placeholder="Search LP, Loc, SKU, Inbound..."
+                class="w-full pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none" />
+              <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+          <button type="button" data-ledger-filter="ALL" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm">
+            All (<span id="cnt-all">0</span>)
+          </button>
+          <button type="button" data-ledger-filter="PENDING" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400">
+            Pending (<span id="cnt-pending">0</span>)
+          </button>
+          <button type="button" data-ledger-filter="COUNTED" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400">
+            Audited (<span id="cnt-counted">0</span>)
+          </button>
+          <button type="button" data-ledger-filter="VARIANCE" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400">
+            Variances (<span id="cnt-variance">0</span>)
+          </button>
+          <button type="button" data-ledger-filter="NOLP" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400">
+            No-LP (<span id="cnt-nolp">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto max-h-[640px] overflow-y-auto select-text">
+        <table class="w-full text-left border-collapse select-text">
+          <thead class="bg-slate-50 dark:bg-slate-850 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400">
+            <tr>
+              <th class="py-2.5 px-3">Pallet LP</th>
+              <th class="py-2.5 px-2.5">Location</th>
+              <th class="py-2.5 px-2.5">Item ID / Name</th>
+              <th class="py-2.5 px-2 text-right">Actual</th>
+              <th class="py-2.5 px-2 text-right">Alloc</th>
+              <th class="py-2.5 px-2 text-right">Rem</th>
+              <th class="py-2.5 px-2 text-right">Counted</th>
+              <th class="py-2.5 px-2 text-right">Diff</th>
+              <th class="py-2.5 px-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs select-text"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ======================================================================= -->
+  <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
+  <!-- ======================================================================= -->
+  <div id="import-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold">Import `stock_by_inventory` Report</h3>
+          <p class="text-xs text-slate-500">Supports .XLS, .XLSX, .CSV, or .JSON inventory exports</p>
+        </div>
+        <button type="button" data-close-modal="import-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <label for="file-upload-input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 rounded-2xl p-6 cursor-pointer bg-slate-50 dark:bg-slate-850/50 transition">
+          <svg class="w-8 h-8 text-indigo-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          <span class="text-sm font-bold">Choose `.xls`, `.xlsx`, `.csv`, or `.json` file</span>
+          <span class="text-xs text-slate-400 mt-1">Columns: Customer NO., Customer Name, location, item ID, pallet_no, Short Description, Actual Stock, Allocation, Available Stock, Warehouse ID</span>
+          <input id="file-upload-input" type="file" accept=".xls,.xlsx,.csv,.json" class="hidden" />
+        </label>
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <button id="download-template-xlsx-btn" type="button" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+            Download .XLS Import Template
+          </button>
+          <button id="restore-sample-btn" type="button" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+            Load Built-in Sample Data
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MODAL 2: WMS LOGIN & INVENTORY API CONNECTOR                            -->
+  <!-- ======================================================================= -->
+  <div id="wms-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+      <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <h3 class="text-base font-bold">WMS Login &amp; Inventory API Connector</h3>
+          <span id="wms-auth-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">Not Signed In</span>
+        </div>
+        <button type="button" data-close-modal="wms-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 overflow-y-auto">
+        <!-- Connection Architecture & Base URL -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div>
+            <label class="text-[11px] font-semibold text-slate-500 block mb-1">Connection Architecture</label>
+            <select id="wms-arch-mode" class="w-full px-2.5 py-2 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700">
+              <option value="DIRECT">Direct WMS API (`https://...`)</option>
+              <option value="PROXY">Backend API Proxy (`/api/auth/login` &amp; `/api/wms/inventory`)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-500 block mb-1">WMS Base URL (`{BASE_URL}`)</label>
+            <input id="wms-base-url" type="url" value="https://prd-onus.target-ai.com:18890"
+              class="w-full px-2.5 py-2 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700" />
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-500 block mb-1">Inventory Endpoint (`POST`)</label>
+            <input id="wms-endpoint-url" type="url" value="https://prd-onus.target-ai.com:18890/api/inventory/query/storageAndInboundDate"
+              class="w-full px-2.5 py-2 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700" />
+            <input id="wms-proxy-url" type="hidden" value="/api/wms/inventory" />
+          </div>
+        </div>
+
+        <!-- STEP 1: WMS ACCOUNT SIGN-IN -->
+        <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Step 1: WMS Account Sign-In (`POST /api/login`)</span>
+            <button id="wms-logout-btn" type="button" class="hidden text-[11px] font-bold text-rose-600 hover:underline">Sign Out</button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+            <div class="sm:col-span-4">
+              <label class="text-[11px] font-semibold text-slate-500 block mb-1">WMS Username</label>
+              <input id="wms-login-username" type="text" autocomplete="username" placeholder="Enter WMS username"
+                class="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            </div>
+            <div class="sm:col-span-4">
+              <label class="text-[11px] font-semibold text-slate-500 block mb-1">WMS Password</label>
+              <input id="wms-login-password" type="password" autocomplete="current-password" placeholder="Enter WMS password"
+                class="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            </div>
+            <div class="sm:col-span-4">
+              <button id="wms-login-btn" type="button" class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm min-h-[36px]">
+                Sign In &amp; Get Token
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <label class="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400 cursor-pointer">
+              <input id="wms-remember-creds" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
+              <span>Save username &amp; password on this device</span>
+            </label>
+            <button id="wms-clear-saved-creds-btn" type="button" class="hidden text-rose-500 hover:underline font-semibold">Forget Saved Login</button>
+          </div>
+
+          <!-- Inline Login Diagnostic / Error Feedback Box -->
+          <div id="wms-login-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium border"></div>
+
+          <!-- Post-Login Active Warehouse ID Selector -->
+          <div id="wms-post-login-wh-bar" class="hidden pt-2.5 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Select Active Warehouse (`warehouse_id`)</span>
+              <span id="wms-login-wh-hint" class="text-[11px] font-mono text-slate-400">Active: ONUS-ONT</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <select id="wms-login-wh-select" class="sm:col-span-5 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
+                <option value="ONUS-ONT">ONUS-ONT</option>
+              </select>
+              <input id="wms-login-wh-custom" type="text" placeholder="Or type Warehouse ID (e.g. WS-TEST)"
+                class="sm:col-span-5 px-2.5 py-1.5 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+              <button id="wms-apply-wh-btn" type="button" class="sm:col-span-2 py-1.5 px-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: INVENTORY QUERY FILTERS -->
+        <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Step 2: Inventory Query Filters</span>
+            <select id="wms-sync-mode" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
+              <option value="REPLACE">Replace Current Inventory</option>
+              <option value="MERGE">Merge New LPNs</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div>
+              <label class="text-[11px] font-semibold text-slate-500 block mb-1">Customer ID (contains)</label>
+              <input id="flt-owner-no" type="text" value="ONUS-001" placeholder="e.g. ONUS-001"
+                class="w-full px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            </div>
+            <div class="sm:col-span-2">
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] font-semibold text-slate-500">Location IDs (add multiple or paste comma/space/newline list)</label>
+                <button id="flt-clear-locs-btn" type="button" class="text-[10px] font-bold text-rose-500 hover:underline hidden">Clear All</button>
+              </div>
+              <div class="flex gap-1.5">
+                <input id="flt-storage-code" type="text" placeholder="e.g. S007, WS01, WS02 (press Enter or + Add)"
+                  class="flex-1 px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+                <button id="flt-add-loc-btn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">
+                  + Add
+                </button>
+              </div>
+              <div id="flt-loc-chips" class="flex flex-wrap gap-1 mt-1.5"></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] font-semibold text-slate-500">Inbound ID (`inbound_no`)</label>
+                <select id="flt-inbound-op" class="text-[10px] bg-transparent font-mono text-indigo-500">
+                  <option value="contains">contains</option>
+                  <option value="equals">equals</option>
+                </select>
+              </div>
+              <input id="flt-inbound-no" type="text" placeholder="e.g. RN2602241059"
+                class="w-full px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] font-semibold text-slate-500">pallet_no</label>
+                <select id="flt-pallet-op" class="text-[10px] bg-transparent font-mono text-indigo-500">
+                  <option value="contains">contains</option>
+                  <option value="equals">equals</option>
+                </select>
+              </div>
+              <input id="flt-pallet-no" type="text" placeholder="e.g. LP2507150345"
+                class="w-full px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] font-semibold text-slate-500">product_code (add multiple)</label>
+                <div class="flex items-center gap-2">
+                  <button id="flt-clear-skus-btn" type="button" class="text-[10px] font-bold text-rose-500 hover:underline hidden">Clear</button>
+                  <select id="flt-sku-op" class="text-[10px] bg-transparent font-mono text-indigo-500">
+                    <option value="contains">contains</option>
+                    <option value="equals">equals</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex gap-1.5">
+                <input id="flt-product-code" type="text" placeholder="e.g. SKU1, SKU2 (Enter or +)"
+                  class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+                <button id="flt-add-sku-btn" type="button" class="px-2 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">
+                  + Add
+                </button>
+              </div>
+              <div id="flt-sku-chips" class="flex flex-wrap gap-1 mt-1.5"></div>
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-500 block mb-1">po_no (contains)</label>
+              <input id="flt-po-no" type="text" placeholder="PO number"
+                class="w-full px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            </div>
+          </div>
+
+          <!-- Request Payload Preview & API Response Inspector -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <span class="text-[11px] font-semibold text-slate-500 block mb-1">Request Payload (`POST` JSON)</span>
+              <textarea id="wms-request-payload-editor" rows="5" readonly
+                class="w-full p-2.5 rounded-xl bg-slate-950 text-sky-300 font-mono text-[10px] border border-slate-800"></textarea>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] font-semibold text-slate-500">API Response Inspector</span>
+                <span id="wms-api-status-text" class="text-[10px] font-mono text-slate-400">Idle</span>
+              </div>
+              <pre id="wms-payload-preview" class="p-2.5 rounded-xl bg-slate-950 text-emerald-400 font-mono text-[10px] overflow-auto h-[106px] border border-slate-800">{ "status": "READY" }</pre>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+            <button id="wms-stop-fetch-btn" type="button" class="hidden px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm">
+              Stop Query
+            </button>
+            <button id="wms-live-fetch-btn" type="button" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+              Query Live WMS Inventory (Paginated)
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 3: AUTOMATIC GOOGLE SHEET CLOUD SYNC (MULTI-WAREHOUSE) -->
+        <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Step 3: Automatic Google Sheet Cloud Sync</span>
+            <label class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input id="gsheet-auto-enabled" type="checkbox" checked class="rounded border-slate-300 text-purple-600" />
+              <span>Auto-Sync on Every Count</span>
+            </label>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            Pre-configured for all warehouses! Every recorded count automatically saves to the active warehouse tab (e.g. <span class="font-mono font-bold">ONUS-ONT</span>) and <span class="font-mono font-bold">Master_Audit_Log</span> in the background with offline retry.
+          </p>
+          <div class="flex items-center justify-between text-[11px] font-mono bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+            <span id="gsheet-sync-status-line" class="text-emerald-600 dark:text-emerald-400 font-bold">Built-in Cloud Sync Active</span>
+            <div class="flex items-center gap-2">
+              <span id="gsheet-queue-count-badge" class="hidden text-amber-600 dark:text-amber-400 font-bold">0 queued offline</span>
+              <button id="gsheet-test-now-btn" type="button" class="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline">Test Connection</button>
+              <button id="gsheet-toggle-override-btn" type="button" class="text-[11px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Change URL</button>
+            </div>
+          </div>
+          <div id="gsheet-override-box" class="hidden grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1">
+            <input id="gsheet-webapp-url" type="url" placeholder="Optional custom https://script.google.com/macros/s/.../exec"
+              class="sm:col-span-9 px-3 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:border-purple-500 focus:outline-none" />
+            <button id="gsheet-save-url-btn" type="button" class="sm:col-span-3 py-2 px-3 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm min-h-[36px]">
+              Save Override
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MODAL 3: FINAL INVENTORY AUDIT & VARIANCE REPORT                        -->
+  <!-- ======================================================================= -->
+  <div id="report-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-6xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
+      <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0 no-print">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-bold">Final Inventory Audit Report</h3>
+          <div class="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+            <button id="rep-view-pallet-btn" type="button" class="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white">Pallet Detail</button>
+            <button id="rep-view-item-btn" type="button" class="px-3 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300">Item-Level Summary</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="export-xlsx-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Export .XLSX</button>
+          <button id="export-csv-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white">Export .CSV</button>
+          <button id="print-report-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white">Print</button>
+          <button type="button" data-close-modal="report-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="report-print-area" class="p-5 overflow-y-auto space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div>
+            <h4 class="text-lg font-extrabold">CycleCount Pro v2 — Inventory Reconciliation Report</h4>
+            <p id="report-meta-line" class="text-xs font-mono text-slate-500 mt-0.5"></p>
+          </div>
+          <div id="report-summary-chips" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead id="report-thead" class="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-500"></thead>
+            <tbody id="report-tbody" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+            <tfoot id="report-tfoot" class="bg-slate-50 dark:bg-slate-850 border-t-2 border-slate-300 dark:border-slate-700 font-bold"></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const APP_VERSION = 'v2';
+    const STORAGE_KEY_PREFIX = 'wms_cyclecount_wh_';
+    const GLOBAL_PREFS_KEY = 'wms_cyclecount_global_prefs_v2';
+    const CREDS_STORAGE_KEY = 'wms_cyclecount_saved_creds_v1';
+    const IDLE_LOGOUT_MS = 60 * 60 * 1000;
+    // Built-in default Google Apps Script Web App URL (and optional ?gsheet=... query param support)
+    const DEFAULT_GOOGLE_SHEET_URL = new URLSearchParams(window.location.search).get('gsheet')
+      || 'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec';
+
+    let activeFetchAbortController = null;
+    let idleLogoutTimer = null;
+    let isCloudSyncFlushing = false;
+    let audioCtx = null;
+
+    const authSession = {
+      token: '',
+      username: '',
+      displayName: '',
+      warehouses: ['ONUS-ONT', 'WS-TEST'],
+      selectedWarehouse: 'ONUS-ONT',
+      archMode: 'DIRECT'
+    };
+
+    const state = {
+      items: [],
+      activeItemId: null,
+      activeWarehouse: 'ONUS-ONT',
+      warehouses: ['ONUS-ONT', 'WS-TEST'],
+      sourceLabel: 'stock_by_inventory Sample',
+      tableFilter: 'ALL',
+      reportViewMode: 'PALLET',
+      scannerMode: 'LP',
+      selectedNoLpItemCode: '',
+      soundEnabled: true,
+      queryLocationIds: [],
+      queryItemCodes: [],
+      googleSheetUrl: DEFAULT_GOOGLE_SHEET_URL,
+      googleSheetAutoSync: true,
+      pendingSyncQueue: [],
+      lastCloudSyncAt: ''
+    };
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        warn: 'bg-amber-600 text-white border-amber-500',
+        error: 'bg-rose-600 text-white border-rose-500',
+        info: 'bg-slate-900 text-white border-slate-700'
+      };
+      const el = document.createElement('div');
+      el.className = `pointer-events-auto px-3.5 py-2.5 rounded-xl text-xs font-semibold shadow-lg border transition-all duration-200 ${colors[type] || colors.info}`;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 220);
+      }, 3400);
+    }
+
+    function playScannerBeep(isSuccess = true) {
+      if (!state.soundEnabled) return;
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        if (!audioCtx) audioCtx = new AudioContextClass();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = isSuccess ? 'sine' : 'sawtooth';
+        osc.frequency.setValueAtTime(isSuccess ? 1046 : 240, audioCtx.currentTime);
+        if (!isSuccess) {
+          osc.frequency.setValueAtTime(180, audioCtx.currentTime + 0.12);
+        }
+        gain.gain.setValueAtTime(0.14, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (isSuccess ? 0.14 : 0.28));
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + (isSuccess ? 0.15 : 0.3));
+      } catch (e) { /* Ignore audio block before gesture */ }
+    }
+
+    async function copyTextToClipboard(text, successMsg) {
+      const val = String(text ?? '');
+      if (!val) return;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(val);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = val;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        showToast(successMsg || `Copied "${val}"`, 'success');
+      } catch (e) {
+        showToast('Unable to copy to clipboard', 'warn');
+      }
+    }
+
+    function loadSavedCredentials() {
+      try {
+        const raw = localStorage.getItem(CREDS_STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (saved.username) document.getElementById('wms-login-username').value = saved.username;
+        if (saved.password) document.getElementById('wms-login-password').value = saved.password;
+        if (saved.baseUrl) {
+          const baseInp = document.getElementById('wms-base-url');
+          const epInp = document.getElementById('wms-endpoint-url');
+          if (baseInp) baseInp.value = saved.baseUrl;
+          if (epInp) epInp.value = `${saved.baseUrl.replace(/\/+$/, '')}/api/inventory/query/storageAndInboundDate`;
+        }
+        const chk = document.getElementById('wms-remember-creds');
+        if (chk) chk.checked = true;
+        document.getElementById('wms-clear-saved-creds-btn')?.classList.remove('hidden');
+      } catch (e) { /* Ignore */ }
+    }
+
+    function parseLoginPayload(raw, headers) {
+      const topKeys = raw && typeof raw === 'object' ? Object.keys(raw) : [];
+      const dataObj = (raw?.result && typeof raw.result === 'object') ? raw.result
+        : (raw?.data && typeof raw.data === 'object') ? raw.data
+        : raw;
+
+      const fields = ['token', 'accessToken', 'access_token', 'jwt', 'authorization', 'authToken', 'sessionId'];
+      let token = '';
+      for (const f of fields) {
+        if (typeof dataObj?.[f] === 'string' && dataObj[f].trim()) {
+          token = dataObj[f].trim();
+          break;
+        }
+        if (typeof raw?.[f] === 'string' && raw[f].trim()) {
+          token = raw[f].trim();
+          break;
+        }
+      }
+      if (!token && typeof raw?.result === 'string' && raw.result.trim().length > 10) {
+        token = raw.result.trim();
+      }
+      if (!token && typeof raw?.data === 'string' && raw.data.trim().length > 10) {
+        token = raw.data.trim();
+      }
+      if (!token && headers) {
+        const hdrAuth = headers.get?.('authorization') || headers.get?.('x-auth-token') || '';
+        if (hdrAuth.trim()) token = hdrAuth.trim();
+      }
+      token = token.replace(/^Bearer\s+/i, '').trim();
+
+      const whListRaw = dataObj?.warehouses || dataObj?.warehouseList || raw?.warehouses || [];
+      const warehouses = Array.isArray(whListRaw) && whListRaw.length
+        ? whListRaw.map(w => typeof w === 'string' ? w : (w.warehouse_id || w.warehouseId || w.code || w.id)).filter(Boolean)
+        : ['ONUS-ONT', 'WS-TEST'];
+      const defaultWarehouse = dataObj?.warehouse_id || dataObj?.warehouseId || warehouses[0] || 'ONUS-ONT';
+      const displayName = dataObj?.displayName || dataObj?.realName || dataObj?.username || '';
+      return { token, warehouses, defaultWarehouse, displayName, topKeys };
+    }
+
+    const WmsAuthService = {
+      async login(username, password) {
+        const cleanUser = String(username || '').trim();
+        const cleanPass = String(password || '');
+        const archSelect = document.getElementById('wms-arch-mode');
+        let archMode = archSelect?.value || 'DIRECT';
+        const baseUrl = (document.getElementById('wms-base-url')?.value || 'https://prd-onus.target-ai.com:18890').trim().replace(/\/+$/, '');
+
+        const attemptDirect = async () => {
+          const res = await fetch(`${baseUrl}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ username: cleanUser, password: cleanPass, client: 'web_client' })
+          });
+          const raw = await res.json();
+          const bizCode = raw?.code;
+          const isBizErr = raw?.success === false || (typeof bizCode === 'number' && bizCode !== 200 && bizCode !== 0);
+          if (!res.ok || isBizErr) {
+            throw new Error(raw?.message || raw?.msg || `WMS login failed (HTTP ${res.status})`);
+          }
+          const parsed = parseLoginPayload(raw, res.headers);
+          if (!parsed.token) {
+            throw new Error(`HTTP 200 returned without token field. Keys: [${parsed.topKeys.join(', ')}]`);
+          }
+          return parsed;
+        };
+
+        const attemptProxy = async () => {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ username: cleanUser, password: cleanPass })
+          });
+          const raw = await res.json();
+          if (!res.ok || !raw.success) {
+            throw new Error(raw?.message || `Proxy login failed (HTTP ${res.status})`);
+          }
+          return {
+            token: raw.token || 'SERVER_SIDE_HTTPONLY_SESSION',
+            warehouses: raw.warehouses || ['ONUS-ONT', 'WS-TEST'],
+            defaultWarehouse: raw.warehouse_id || 'ONUS-ONT',
+            displayName: raw.displayName || cleanUser
+          };
+        };
+
+        let result;
+        if (archMode === 'PROXY') {
+          result = await attemptProxy();
+        } else {
+          try {
+            result = await attemptDirect();
+          } catch (directErr) {
+            // Auto-fallback to local Node proxy if browser blocks cross-origin/TLS to :18890
+            if (directErr instanceof TypeError && window.location.protocol.startsWith('http')) {
+              result = await attemptProxy();
+              archMode = 'PROXY';
+              if (archSelect) archSelect.value = 'PROXY';
+            } else {
+              throw directErr;
+            }
+          }
+        }
+
+        authSession.token = result.token;
+        authSession.username = cleanUser;
+        authSession.displayName = result.displayName || cleanUser;
+        authSession.warehouses = Array.from(new Set([...state.warehouses, ...result.warehouses]));
+        authSession.archMode = archMode;
+        state.warehouses = authSession.warehouses;
+        if (result.defaultWarehouse && !state.activeWarehouse) {
+          state.activeWarehouse = result.defaultWarehouse;
+        }
+        authSession.selectedWarehouse = state.activeWarehouse;
+
+        resetIdleTimer();
+        updateAuthUi();
+        renderHeaderAndKPIs();
+        return result;
+      },
+
+      async logout() {
+        if (authSession.archMode === 'PROXY') {
+          try {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+          } catch (e) { /* Ignore */ }
+        }
+        authSession.token = '';
+        authSession.username = '';
+        authSession.displayName = '';
+        if (idleLogoutTimer) clearTimeout(idleLogoutTimer);
+        updateAuthUi();
+      }
+    };
+
+    const SAMPLE_STOCK_BY_INVENTORY = [
+      {
+        'Customer NO.': 'ONUS-001',
+        'Customer Name': 'Etekcity Corp',
+        'loction': 'S007',
+        'item ID': 'HEACAFLVNUS0012A',
+        'pallet_no': 'LP2507150345',
+        'Short Description': 'HEACAFLVNUS0012A Air Purifier Filter',
+        'Actual Stock': 10,
+        'Allocation': 10,
+        'Available Stock': 0,
+        'Warehouse ID': 'ONUS-ONT'
+      },
+      {
+        'Customer NO.': 'ONUS-001',
+        'Customer Name': 'Etekcity Corp',
+        'loction': 'S008',
+        'item ID': 'HEACAFLVNUS0015B',
+        'pallet_no': 'LP2611171034',
+        'Short Description': 'Core 300 Replacement True HEPA Filter',
+        'Actual Stock': 48,
+        'Allocation': 12,
+        'Available Stock': 36,
+        'Warehouse ID': 'ONUS-ONT'
+      },
+      {
+        'Customer NO.': 'ONUS-001',
+        'Customer Name': 'Etekcity Corp',
+        'loction': 'WS01',
+        'item ID': 'ESF24-BLK-US',
+        'pallet_no': 'LP2611171035',
+        'Short Description': 'Smart Fitness Body Weight Scale Black',
+        'Actual Stock': 60,
+        'Allocation': 0,
+        'Available Stock': 60,
+        'Warehouse ID': 'ONUS-ONT'
+      },
+      {
+        'Customer NO.': 'ONUS-001',
+        'Customer Name': 'Etekcity Corp',
+        'loction': 'WS02',
+        'item ID': 'CAF-LI401S-KUS',
+        'pallet_no': 'LP2611171036',
+        'Short Description': 'Dual Blaze 6.8-Quart Smart Air Fryer',
+        'Actual Stock': 24,
+        'Allocation': 4,
+        'Available Stock': 20,
+        'Warehouse ID': 'ONUS-ONT'
+      }
+    ];
+
+    // -------------------------------------------------------------------------
+    // SESSION, PER-WAREHOUSE ISOLATION & AUTOMATIC GOOGLE SHEET CLOUD SYNC
+    // -------------------------------------------------------------------------
+    function getWarehouseStorageKey(whId) {
+      const cleanWh = String(whId || state.activeWarehouse || 'ONUS-ONT').trim().replace(/[^\w-]/g, '_');
+      return `${STORAGE_KEY_PREFIX}${cleanWh}_v2`;
+    }
+
+    function resetIdleTimer() {
+      if (idleLogoutTimer) clearTimeout(idleLogoutTimer);
+      if (!authSession.token) return;
+      idleLogoutTimer = setTimeout(() => {
+        WmsAuthService.logout();
+        showToast('WMS session expired after 60 minutes of inactivity.', 'warn');
+      }, IDLE_LOGOUT_MS);
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(GLOBAL_PREFS_KEY, JSON.stringify({
+          activeWarehouse: state.activeWarehouse,
+          warehouses: state.warehouses,
+          soundEnabled: state.soundEnabled,
+          googleSheetUrl: state.googleSheetUrl,
+          googleSheetAutoSync: state.googleSheetAutoSync
+        }));
+        localStorage.setItem(getWarehouseStorageKey(state.activeWarehouse), JSON.stringify({
+          items: state.items,
+          sourceLabel: state.sourceLabel,
+          pendingSyncQueue: state.pendingSyncQueue,
+          lastCloudSyncAt: state.lastCloudSyncAt
+        }));
+      } catch (e) { /* Ignore quota errors */ }
+    }
+
+    function loadWarehouseBucket(whId) {
+      try {
+        const raw = localStorage.getItem(getWarehouseStorageKey(whId));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state.items = Array.isArray(parsed.items) ? parsed.items : [];
+          state.sourceLabel = parsed.sourceLabel || `${whId} Audit Session`;
+          state.pendingSyncQueue = Array.isArray(parsed.pendingSyncQueue) ? parsed.pendingSyncQueue : [];
+          state.lastCloudSyncAt = parsed.lastCloudSyncAt || '';
+          state.activeItemId = null;
+          return true;
+        }
+      } catch (e) { /* Ignore */ }
+      state.items = [];
+      state.pendingSyncQueue = [];
+      state.lastCloudSyncAt = '';
+      state.activeItemId = null;
+      state.sourceLabel = `${whId} (Empty — Query WMS or Import)`;
+      return false;
+    }
+
+    function loadSavedState() {
+      try {
+        const prefsRaw = localStorage.getItem(GLOBAL_PREFS_KEY);
+        if (prefsRaw) {
+          const prefs = JSON.parse(prefsRaw);
+          if (prefs.activeWarehouse) state.activeWarehouse = prefs.activeWarehouse;
+          if (Array.isArray(prefs.warehouses) && prefs.warehouses.length) state.warehouses = prefs.warehouses;
+          if (typeof prefs.soundEnabled === 'boolean') state.soundEnabled = prefs.soundEnabled;
+          if (typeof prefs.googleSheetUrl === 'string' && prefs.googleSheetUrl.trim()) {
+            state.googleSheetUrl = prefs.googleSheetUrl.trim();
+          } else {
+            state.googleSheetUrl = DEFAULT_GOOGLE_SHEET_URL;
+          }
+          if (typeof prefs.googleSheetAutoSync === 'boolean') state.googleSheetAutoSync = prefs.googleSheetAutoSync;
+        }
+        if (loadWarehouseBucket(state.activeWarehouse) && state.items.length > 0) {
+          return true;
+        }
+        // Fallback migration from legacy single-warehouse key
+        const legacyRaw = localStorage.getItem('wms_cyclecount_stock_by_inv_v1');
+        if (legacyRaw) {
+          const parsed = JSON.parse(legacyRaw);
+          if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+            state.items = parsed.items;
+            state.sourceLabel = parsed.sourceLabel || 'Saved Audit Session';
+            return true;
+          }
+        }
+      } catch (e) { /* Ignore parse errors */ }
+      return false;
+    }
+
+    const GoogleSheetCloudSync = {
+      getEffectiveUrl() {
+        return (state.googleSheetUrl || DEFAULT_GOOGLE_SHEET_URL || '').trim();
+      },
+
+      isBuiltInConfigured() {
+        const u = this.getEffectiveUrl();
+        return Boolean(u && !u.includes('BUILT_IN_CYCLECOUNT_PRO_V2_SYNC_ENDPOINT'));
+      },
+
+      updateStatusUi(statusText, mode = 'idle') {
+        const headerBadge = document.getElementById('header-cloud-sync-badge');
+        const headerDot = document.getElementById('header-cloud-sync-dot');
+        const headerText = document.getElementById('header-cloud-sync-text');
+        const modalStatus = document.getElementById('gsheet-sync-status-line');
+        const queueBadge = document.getElementById('gsheet-queue-count-badge');
+
+        const activeUrl = this.getEffectiveUrl();
+        const configured = Boolean(activeUrl && state.googleSheetAutoSync);
+        if (headerBadge) headerBadge.classList.toggle('hidden', !configured);
+
+        const qLen = state.pendingSyncQueue.length;
+        if (queueBadge) {
+          queueBadge.classList.toggle('hidden', qLen === 0);
+          queueBadge.textContent = `${qLen} queued offline`;
+        }
+
+        if (headerDot && headerText) {
+          if (mode === 'syncing') {
+            headerDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping';
+            headerText.textContent = 'Syncing...';
+          } else if (qLen > 0 || mode === 'error') {
+            headerDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+            headerText.textContent = `Queue (${qLen})`;
+          } else {
+            headerDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+            headerText.textContent = 'Sheet Auto-Synced';
+          }
+        }
+
+        if (modalStatus) {
+          modalStatus.textContent = statusText || (
+            !state.googleSheetAutoSync
+              ? 'Auto-sync paused'
+              : state.lastCloudSyncAt
+                ? `Built-in sync active • Last synced ${state.lastCloudSyncAt}`
+                : 'Built-in sync armed — pushes automatically on every count'
+          );
+        }
+      },
+
+      enqueueRecord(item) {
+        const targetUrl = this.getEffectiveUrl();
+        if (!targetUrl || !state.googleSheetAutoSync) return;
+        const record = {
+          countedAt: item.countedAt || new Date().toISOString(),
+          warehouseId: item.warehouseId || state.activeWarehouse,
+          auditor: authSession.displayName || authSession.username || 'PDA-Operator',
+          lpn: item.lpn,
+          inboundNo: item.inboundNo || '',
+          poNo: item.poNo || '',
+          sysLocation: item.sysLocation,
+          actualLocation: item.actualLocation || item.sysLocation,
+          itemId: item.itemId,
+          itemName: item.itemName,
+          sysActualQty: item.sysActualQty || 0,
+          sysAllocQty: item.sysAllocQty || 0,
+          sysAvailQty: item.sysAvailQty || 0,
+          actualQty: item.actualQty ?? 0,
+          status: (item.actualQty - (item.sysActualQty || 0)) === 0 && (item.actualLocation || item.sysLocation) === item.sysLocation ? 'Matched' : 'Variance',
+          reasonCode: item.reasonCode || '',
+          notes: item.notes || ''
+        };
+        state.pendingSyncQueue.push(record);
+        saveState();
+        this.flushQueue();
+      },
+
+      async flushQueue() {
+        const targetUrl = this.getEffectiveUrl();
+        if (isCloudSyncFlushing || !targetUrl || !state.googleSheetAutoSync) return;
+        if (state.pendingSyncQueue.length === 0) {
+          this.updateStatusUi();
+          return;
+        }
+
+        isCloudSyncFlushing = true;
+        const batch = [...state.pendingSyncQueue];
+        this.updateStatusUi(`Syncing ${batch.length} count(s) to Google Sheet...`, 'syncing');
+
+        const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
+        const proxySyncEndpoint = '/api/sheets/sync';
+
+        try {
+          // If running with the Node proxy server, route through /api/sheets/sync first (zero CORS issues)
+          if (archMode === 'PROXY' && window.location.protocol.startsWith('http')) {
+            const pRes = await fetch(proxySyncEndpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                targetUrl,
+                warehouseId: state.activeWarehouse,
+                records: batch
+              })
+            });
+            if (pRes.ok) {
+              state.pendingSyncQueue = state.pendingSyncQueue.slice(batch.length);
+              state.lastCloudSyncAt = new Date().toLocaleTimeString();
+              saveState();
+              this.updateStatusUi(`Synced ${batch.length} record(s) at ${state.lastCloudSyncAt}`, 'ok');
+              return;
+            }
+          }
+
+          // Direct browser -> Google Apps Script Web App POST (text/plain avoids CORS preflight)
+          const res = await fetch(targetUrl, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              warehouseId: state.activeWarehouse,
+              records: batch
+            })
+          });
+          if (!res.ok && res.type !== 'opaque') throw new Error(`HTTP ${res.status}`);
+
+          state.pendingSyncQueue = state.pendingSyncQueue.slice(batch.length);
+          state.lastCloudSyncAt = new Date().toLocaleTimeString();
+          saveState();
+          this.updateStatusUi(`Synced ${batch.length} record(s) at ${state.lastCloudSyncAt}`, 'ok');
+        } catch (err) {
+          // Fallback for sandboxed iframes (e.g. Google Sites) where Apps Script 302 redirect blocks CORS read
+          try {
+            await fetch(targetUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                warehouseId: state.activeWarehouse,
+                records: batch
+              })
+            });
+            state.pendingSyncQueue = state.pendingSyncQueue.slice(batch.length);
+            state.lastCloudSyncAt = new Date().toLocaleTimeString();
+            saveState();
+            this.updateStatusUi(`Sent ${batch.length} record(s) at ${state.lastCloudSyncAt}`, 'ok');
+          } catch (fallbackErr) {
+            this.updateStatusUi(`Offline/Retry queued (${state.pendingSyncQueue.length} pending): ${err.message}`, 'error');
+          }
+        } finally {
+          isCloudSyncFlushing = false;
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // WMS INVENTORY API SERVICE (PAGINATED + PARALLEL FETCHING)
+    // -------------------------------------------------------------------------
+    const WmsInventoryApiService = {
+      getSelectedWarehouseId() {
+        const customWh = (document.getElementById('wms-login-wh-custom')?.value || '').trim();
+        const selectWh = (document.getElementById('wms-login-wh-select')?.value || '').trim();
+        return customWh || selectWh || state.activeWarehouse || 'ONUS-ONT';
+      },
+
+      parseMultiTokens(rawInput, existingList = []) {
+        const tokens = String(rawInput || '')
+          .split(/[\s,;|\n\r]+/)
+          .map(t => t.trim().toUpperCase())
+          .filter(Boolean);
+        return Array.from(new Set([...existingList, ...tokens]));
+      },
+
+      buildPayload(startRow = 0, endRow = 500, overrideLoc = '', overrideSku = '') {
+        const filterModel = {};
+        const ownerNo = (document.getElementById('flt-owner-no')?.value || '').trim();
+        const inboundNo = (document.getElementById('flt-inbound-no')?.value || '').trim();
+        const inboundOp = document.getElementById('flt-inbound-op')?.value || 'contains';
+        const palletNo = (document.getElementById('flt-pallet-no')?.value || '').trim();
+        const palletOp = document.getElementById('flt-pallet-op')?.value || 'contains';
+        const poNo = (document.getElementById('flt-po-no')?.value || '').trim();
+        const skuOp = document.getElementById('flt-sku-op')?.value || 'contains';
+
+        if (ownerNo) filterModel.owner_no = { filterType: 'text', type: 'contains', filter: ownerNo };
+        if (inboundNo) filterModel.inbound_no = { filterType: 'text', type: inboundOp, filter: inboundNo };
+        if (palletNo) filterModel.pallet_no = { filterType: 'text', type: palletOp, filter: palletNo };
+        if (poNo) filterModel.po_no = { filterType: 'text', type: 'contains', filter: poNo };
+
+        const locs = overrideLoc
+          ? [overrideLoc]
+          : this.parseMultiTokens(document.getElementById('flt-storage-code')?.value, state.queryLocationIds);
+        const skus = overrideSku
+          ? [overrideSku]
+          : this.parseMultiTokens(document.getElementById('flt-product-code')?.value, state.queryItemCodes);
+
+        const orCondition = [];
+        if (locs.length === 1) {
+          filterModel.storage_code = { filterType: 'text', type: 'contains', filter: locs[0] };
+        } else if (locs.length > 1) {
+          locs.forEach(loc => orCondition.push({ storage_code: { filterType: 'text', type: 'contains', filter: loc } }));
+        }
+
+        if (skus.length === 1) {
+          filterModel.product_code = { filterType: 'text', type: skuOp, filter: skus[0] };
+        } else if (skus.length > 1) {
+          skus.forEach(sku => orCondition.push({ product_code: { filterType: 'text', type: skuOp, filter: sku } }));
+        }
+
+        return {
+          startRow,
+          endRow,
+          filterModel,
+          sortModel: [],
+          ...(orCondition.length ? { orCondition } : {}),
+          warehouse_id: this.getSelectedWarehouseId()
+        };
+      },
+
+      mapApiRecordToItem(rec, idx) {
+        const lpn = String(rec.pallet_no || rec.palletNo || rec.lpn || `ROW-${idx + 1}`).trim().toUpperCase();
+        const sysLoc = String(rec.storage_code || rec.location_code || rec.location || '').trim().toUpperCase();
+        const itemId = String(rec.product_code || rec.sku || rec.item_code || '').trim().toUpperCase();
+        const itemName = String(rec.product_name || rec.short_desc || rec.description || itemId || 'Unnamed Item').trim();
+        const inboundNo = String(
+          rec.inbound_no || rec.inboundNo || rec.receipt_no || rec.asn_no ||
+          rec.inbound_order_no || rec.source_no || rec.putaway_no || rec.reference_no || ''
+        ).trim();
+        const poNo = String(rec.po_no || rec.poNo || rec.purchase_order_no || '').trim();
+        const sysActual = Number(rec.actual_qty ?? rec.qty ?? rec.stock_qty ?? 0);
+        const sysAlloc = Number(rec.allocated_qty ?? rec.allocation_qty ?? rec.locked_qty ?? 0);
+        const sysAvail = Number(rec.available_qty ?? rec.remaining_qty ?? Math.max(0, sysActual - sysAlloc));
+
+        return {
+          id: `wms_${lpn}_${itemId}_${sysLoc}_${idx}`,
+          lpn,
+          inboundNo,
+          poNo,
+          customerNo: String(rec.owner_no || rec.customer_no || '').trim(),
+          customerName: String(rec.owner_name || rec.customer_name || '').trim(),
+          warehouseId: String(rec.warehouse_id || this.getSelectedWarehouseId()).trim(),
+          sysLocation: sysLoc,
+          actualLocation: sysLoc,
+          itemId,
+          itemName,
+          barcode: String(rec.barcode || rec.upc || itemId).trim().toUpperCase(),
+          sysActualQty: sysActual,
+          sysAllocQty: sysAlloc,
+          sysAvailQty: sysAvail,
+          actualQty: null,
+          counted: false,
+          isNoLp: lpn.startsWith('NO-LP'),
+          reasonCode: '',
+          notes: '',
+          countedAt: ''
+        };
+      },
+
+      async postQuery(payload, signal) {
+        const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
+        const directUrl = (document.getElementById('wms-endpoint-url')?.value || 'https://prd-onus.target-ai.com:18890/api/inventory/query/storageAndInboundDate').trim();
+        const proxyUrl = (document.getElementById('wms-proxy-url')?.value || '/api/wms/inventory').trim();
+        const url = archMode === 'PROXY' ? proxyUrl : directUrl;
+
+        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        if (archMode === 'DIRECT' && authSession.token) {
+          headers.Authorization = `Bearer ${authSession.token}`;
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          credentials: archMode === 'PROXY' ? 'same-origin' : 'omit',
+          body: JSON.stringify(payload),
+          signal
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.message || data?.msg || `WMS query failed (HTTP ${res.status})`);
+        }
+        return data;
+      },
+
+      extractRowsAndTotal(data) {
+        const rows = Array.isArray(data?.rows) ? data.rows
+          : Array.isArray(data?.data?.rows) ? data.data.rows
+          : Array.isArray(data?.result?.rows) ? data.result.rows
+          : Array.isArray(data?.result?.records) ? data.result.records
+          : Array.isArray(data?.data) ? data.data
+          : Array.isArray(data?.result) ? data.result
+          : [];
+        const lastRow = Number(data?.lastRow ?? data?.data?.lastRow ?? data?.result?.total ?? data?.total ?? rows.length);
+        return { rows, lastRow };
+      },
+
+      async fetchAllPages(onProgress, signal) {
+        const pageSize = 500;
+        const firstPayload = this.buildPayload(0, pageSize);
+        const firstData = await this.postQuery(firstPayload, signal);
+        const { rows: firstRows, lastRow } = this.extractRowsAndTotal(firstData);
+
+        let allRawRows = [...firstRows];
+        if (onProgress) onProgress(allRawRows.length, lastRow > 0 ? lastRow : null);
+
+        if (lastRow > firstRows.length && firstRows.length > 0) {
+          const offsets = [];
+          for (let start = pageSize; start < lastRow; start += pageSize) {
+            offsets.push(start);
+          }
+          for (let i = 0; i < offsets.length; i += 4) {
+            const batch = offsets.slice(i, i + 4);
+            const results = await Promise.all(
+              batch.map(start => this.postQuery(this.buildPayload(start, start + pageSize), signal))
+            );
+            results.forEach(d => {
+              const { rows } = this.extractRowsAndTotal(d);
+              allRawRows.push(...rows);
+            });
+            if (onProgress) onProgress(allRawRows.length, lastRow);
+          }
+        }
+
+        // Fallback if backend ignored multi-token orCondition
+        const locs = this.parseMultiTokens(document.getElementById('flt-storage-code')?.value, state.queryLocationIds);
+        const skus = this.parseMultiTokens(document.getElementById('flt-product-code')?.value, state.queryItemCodes);
+        if (allRawRows.length === 0 && (locs.length > 1 || skus.length > 1)) {
+          const queries = locs.length > 1
+            ? locs.map(loc => this.buildPayload(0, pageSize, loc, ''))
+            : skus.map(sku => this.buildPayload(0, pageSize, '', sku));
+          for (let i = 0; i < queries.length; i += 4) {
+            const batch = queries.slice(i, i + 4);
+            const results = await Promise.all(batch.map(q => this.postQuery(q, signal)));
+            results.forEach(d => {
+              const { rows } = this.extractRowsAndTotal(d);
+              allRawRows.push(...rows);
+            });
+            if (onProgress) onProgress(allRawRows.length, null);
+          }
+        }
+
+        const mapped = allRawRows.map((rec, idx) => this.mapApiRecordToItem(rec, idx));
+        return { items: mapped, sampleRaw: allRawRows[0] || null };
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // DATA NORMALIZATION, IMPORT & MULTI-QUERY UI HELPERS
+    // -------------------------------------------------------------------------
+    function normalizeRowsToItems(rows) {
+      return (rows || []).map((r, idx) => {
+        const lpn = String(r['pallet_no'] ?? r['Pallet LP'] ?? r['LPN'] ?? r['lpn'] ?? `ROW-${idx + 1}`).trim().toUpperCase();
+        const sysLoc = String(r['location'] ?? r['loction'] ?? r['Location'] ?? r['Sys Location'] ?? r['storage_code'] ?? '').trim().toUpperCase();
+        const itemId = String(r['item ID'] ?? r['Item ID'] ?? r['SKU'] ?? r['product_code'] ?? '').trim().toUpperCase();
+        const itemName = String(r['Short Description'] ?? r['Item Description'] ?? r['Item Name'] ?? r['product_name'] ?? itemId).trim();
+        const sysActual = Number(r['Actual Stock'] ?? r['Sys Actual'] ?? r['System Qty'] ?? r['actual_qty'] ?? 0) || 0;
+        const sysAlloc = Number(r['Allocation'] ?? r['allocated_qty'] ?? 0) || 0;
+        const sysAvail = Number(r['Available Stock'] ?? r['Remaining'] ?? Math.max(0, sysActual - sysAlloc)) || 0;
+        const whId = String(r['Warehouse ID'] ?? r['warehouse_id'] ?? state.activeWarehouse).trim() || state.activeWarehouse;
+
+        return {
+          id: `imp_${lpn}_${itemId}_${idx}`,
+          lpn,
+          inboundNo: String(r['Inbound ID'] ?? r['inbound_no'] ?? '').trim(),
+          poNo: String(r['PO No'] ?? r['po_no'] ?? '').trim(),
+          customerNo: String(r['Customer NO.'] ?? r['owner_no'] ?? '').trim(),
+          customerName: String(r['Customer Name'] ?? r['owner_name'] ?? '').trim(),
+          warehouseId: whId,
+          sysLocation: sysLoc,
+          actualLocation: sysLoc,
+          itemId,
+          itemName,
+          barcode: itemId,
+          sysActualQty: sysActual,
+          sysAllocQty: sysAlloc,
+          sysAvailQty: sysAvail,
+          actualQty: null,
+          counted: false,
+          isNoLp: lpn.startsWith('NO-LP'),
+          reasonCode: '',
+          notes: '',
+          countedAt: ''
+        };
+      }).filter(item => item.lpn || item.itemId);
+    }
+
+    function applyImportedItems(newItems, sourceLabel, replace = true) {
+      if (replace) {
+        state.items = newItems;
+        state.activeItemId = null;
+      } else {
+        const existingLpns = new Set(state.items.map(i => `${i.lpn}|${i.itemId}`));
+        newItems.forEach(item => {
+          if (!existingLpns.has(`${item.lpn}|${item.itemId}`)) {
+            state.items.push(item);
+          }
+        });
+      }
+      state.sourceLabel = sourceLabel;
+      saveState();
+      renderAll();
+    }
+
+    function addLocationTokensFromInput() {
+      const inp = document.getElementById('flt-storage-code');
+      if (!inp) return;
+      state.queryLocationIds = WmsInventoryApiService.parseMultiTokens(inp.value, state.queryLocationIds);
+      inp.value = '';
+      renderMultiQueryChips();
+    }
+
+    function addSkuTokensFromInput() {
+      const inp = document.getElementById('flt-product-code');
+      if (!inp) return;
+      state.queryItemCodes = WmsInventoryApiService.parseMultiTokens(inp.value, state.queryItemCodes);
+      inp.value = '';
+      renderMultiQueryChips();
+    }
+
+    function renderMultiQueryChips() {
+      const locWrap = document.getElementById('flt-loc-chips');
+      const clearLocBtn = document.getElementById('flt-clear-locs-btn');
+      if (locWrap) {
+        locWrap.innerHTML = state.queryLocationIds.map(loc => `
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+            ${escapeHtml(loc)}
+            <button type="button" data-remove-loc="${escapeHtml(loc)}" class="hover:text-rose-500">&times;</button>
+          </span>
+        `).join('');
+      }
+      clearLocBtn?.classList.toggle('hidden', state.queryLocationIds.length === 0);
+
+      const skuWrap = document.getElementById('flt-sku-chips');
+      const clearSkuBtn = document.getElementById('flt-clear-skus-btn');
+      if (skuWrap) {
+        skuWrap.innerHTML = state.queryItemCodes.map(sku => `
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+            ${escapeHtml(sku)}
+            <button type="button" data-remove-sku="${escapeHtml(sku)}" class="hover:text-rose-500">&times;</button>
+          </span>
+        `).join('');
+      }
+      clearSkuBtn?.classList.toggle('hidden', state.queryItemCodes.length === 0);
+      updateRequestPayloadPreview();
+    }
+
+    function updateRequestPayloadPreview() {
+      const editor = document.getElementById('wms-request-payload-editor');
+      if (!editor) return;
+      editor.value = JSON.stringify(WmsInventoryApiService.buildPayload(0, 500), null, 2);
+    }
+
+    function updateAuthUi() {
+      const signedIn = Boolean(authSession.token);
+      const dot = document.getElementById('header-auth-dot');
+      const badge = document.getElementById('wms-auth-badge');
+      const logoutBtn = document.getElementById('wms-logout-btn');
+      const whBar = document.getElementById('wms-post-login-wh-bar');
+      const whHint = document.getElementById('wms-login-wh-hint');
+
+      if (dot) dot.className = `w-2 h-2 rounded-full shrink-0 ${signedIn ? 'bg-emerald-400' : 'bg-amber-500'}`;
+      if (badge) {
+        badge.textContent = signedIn ? `Signed In: ${authSession.displayName || authSession.username}` : 'Not Signed In';
+        badge.className = signedIn
+          ? 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+          : 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30';
+      }
+      logoutBtn?.classList.toggle('hidden', !signedIn);
+      whBar?.classList.toggle('hidden', !signedIn);
+      if (whHint) whHint.textContent = `Active: ${state.activeWarehouse}`;
+    }
+
+    function openModal(id) {
+      document.getElementById(id)?.classList.remove('hidden');
+      if (id === 'wms-modal') {
+        const urlInp = document.getElementById('gsheet-webapp-url');
+        const autoChk = document.getElementById('gsheet-auto-enabled');
+        if (urlInp) urlInp.value = state.googleSheetUrl === DEFAULT_GOOGLE_SHEET_URL ? '' : (state.googleSheetUrl || '');
+        if (autoChk) autoChk.checked = state.googleSheetAutoSync;
+        GoogleSheetCloudSync.updateStatusUi();
+        updateRequestPayloadPreview();
+      }
+    }
+
+    function closeModal(id) {
+      document.getElementById(id)?.classList.add('hidden');
+    }
+
+    // -------------------------------------------------------------------------
+    // RENDERING: HEADER, KPIS, SCANNER COMPARISON, LEDGER & FINAL REPORT
+    // -------------------------------------------------------------------------
+    function renderHeaderAndKPIs() {
+      const whSel = document.getElementById('header-wh-select');
+      const modalWhSel = document.getElementById('wms-login-wh-select');
+      const allWhs = Array.from(new Set([...state.warehouses, state.activeWarehouse].filter(Boolean)));
+      [whSel, modalWhSel].forEach(sel => {
+        if (!sel) return;
+        sel.innerHTML = allWhs.map(w => `<option value="${escapeHtml(w)}" ${w === state.activeWarehouse ? 'selected' : ''}>${escapeHtml(w)}</option>`).join('');
+      });
+
+      const srcBadge = document.getElementById('header-source-badge');
+      if (srcBadge) srcBadge.textContent = state.sourceLabel;
+
+      const total = state.items.length;
+      const countedItems = state.items.filter(i => i.counted);
+      const countedCount = countedItems.length;
+      const pct = total > 0 ? Math.round((countedCount / total) * 100) : 0;
+
+      const sysActual = state.items.reduce((s, i) => s + (i.sysActualQty || 0), 0);
+      const sysAlloc = state.items.reduce((s, i) => s + (i.sysAllocQty || 0), 0);
+      const sysRem = state.items.reduce((s, i) => s + (i.sysAvailQty || 0), 0);
+      const physCounted = countedItems.reduce((s, i) => s + (i.actualQty ?? 0), 0);
+      const variances = countedItems.filter(i => (i.actualQty ?? 0) !== (i.sysActualQty || 0) || (i.actualLocation || i.sysLocation) !== i.sysLocation).length;
+      const noLpCount = state.items.filter(i => i.isNoLp || String(i.lpn).startsWith('NO-LP')).length;
+
+      document.getElementById('tc56-compact-progress').textContent = `${countedCount}/${total} Audited`;
+      document.getElementById('kpi-progress-pct').textContent = `${pct}%`;
+      document.getElementById('kpi-counted-pallets').textContent = `${countedCount}/${total}`;
+      document.getElementById('kpi-progress-bar').style.width = `${pct}%`;
+      document.getElementById('kpi-sys-actual').textContent = sysActual.toLocaleString();
+      document.getElementById('kpi-sys-alloc').textContent = sysAlloc.toLocaleString();
+      document.getElementById('kpi-sys-rem').textContent = sysRem.toLocaleString();
+      document.getElementById('kpi-phys-counted').textContent = physCounted.toLocaleString();
+      document.getElementById('kpi-variances').textContent = variances.toLocaleString();
+      document.getElementById('kpi-nolp-badge').textContent = `${noLpCount} No-LP`;
+
+      GoogleSheetCloudSync.updateStatusUi();
+    }
+
+    function renderQuickLpChips() {
+      const wrap = document.getElementById('quick-lp-chips');
+      if (!wrap) return;
+      const pending = state.items.filter(i => !i.counted).slice(0, 6);
+      if (!pending.length) {
+        wrap.innerHTML = `<span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">All pallets audited!</span>`;
+        return;
+      }
+      wrap.innerHTML = pending.map(item => `
+        <button type="button" data-select-item-id="${escapeHtml(item.id)}"
+          class="px-2 py-1 rounded-lg font-mono text-[11px] font-bold bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-700 dark:text-indigo-300 border border-slate-200 dark:border-slate-700 transition">
+          ${escapeHtml(item.lpn)} <span class="text-slate-400 font-normal">(${escapeHtml(item.sysLocation || '--')})</span>
+        </button>
+      `).join('');
+    }
+
+    function selectItemForCount(itemId) {
+      const item = state.items.find(i => i.id === itemId);
+      if (!item) return;
+      state.activeItemId = item.id;
+
+      document.getElementById('comparison-empty-state')?.classList.add('hidden');
+      document.getElementById('comparison-active-panel')?.classList.remove('hidden');
+
+      document.getElementById('comp-lpn').textContent = item.lpn;
+      document.getElementById('comp-wh-tag').textContent = `WH: ${item.warehouseId || state.activeWarehouse}`;
+
+      const inbTag = document.getElementById('comp-inbound-tag');
+      if (inbTag) {
+        inbTag.classList.toggle('hidden', !item.inboundNo);
+        inbTag.textContent = `INB: ${item.inboundNo}`;
+      }
+      const poTag = document.getElementById('comp-po-tag');
+      if (poTag) {
+        poTag.classList.toggle('hidden', !item.poNo);
+        poTag.textContent = `PO: ${item.poNo}`;
+      }
+
+      document.getElementById('comp-customer-tag').textContent = [item.customerNo, item.customerName].filter(Boolean).join(' • ') || 'Inventory Audit Record';
+      const statusPill = document.getElementById('comp-status-pill');
+      if (statusPill) {
+        statusPill.textContent = item.counted ? 'AUDITED' : 'PENDING';
+        statusPill.className = item.counted
+          ? 'px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0'
+          : 'px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0';
+      }
+
+      document.getElementById('comp-sys-loc').textContent = item.sysLocation || '--';
+      document.getElementById('comp-sys-actual').textContent = item.sysActualQty;
+      document.getElementById('comp-sys-alloc').textContent = item.sysAllocQty;
+      document.getElementById('comp-sys-rem').textContent = item.sysAvailQty;
+      document.getElementById('comp-sys-sku').textContent = item.itemId || 'N/A';
+      document.getElementById('comp-sys-name').textContent = item.itemName || '';
+
+      const qtyInput = document.getElementById('phys-qty-input');
+      const locInput = document.getElementById('phys-loc-input');
+      const itemInput = document.getElementById('phys-item-input');
+      const reasonSel = document.getElementById('phys-reason-select');
+      const notesInput = document.getElementById('phys-notes-input');
+
+      qtyInput.value = item.counted && item.actualQty !== null ? item.actualQty : item.sysActualQty;
+      locInput.value = item.actualLocation || item.sysLocation || '';
+      itemInput.value = item.itemName || item.itemId || '';
+      reasonSel.value = item.reasonCode || '';
+      notesInput.value = item.notes || '';
+
+      updateLiveCountVarianceBadges();
+      qtyInput.focus();
+      qtyInput.select();
+    }
+
+    function updateLiveCountVarianceBadges() {
+      const item = state.items.find(i => i.id === state.activeItemId);
+      if (!item) return;
+      const entered = Number(document.getElementById('phys-qty-input')?.value || 0);
+      const diffAct = entered - (item.sysActualQty || 0);
+      const diffRem = entered - (item.sysAvailQty || 0);
+
+      const actBadge = document.getElementById('var-vs-actual-badge');
+      const remBadge = document.getElementById('var-vs-rem-badge');
+      if (actBadge) {
+        actBadge.textContent = `vs Actual: ${diffAct > 0 ? '+' : ''}${diffAct}`;
+        actBadge.className = `px-1.5 py-0.5 rounded font-bold ${diffAct === 0 ? 'bg-emerald-500/15 text-emerald-600' : 'bg-rose-500/15 text-rose-600'}`;
+      }
+      if (remBadge) {
+        remBadge.textContent = `vs Rem: ${diffRem > 0 ? '+' : ''}${diffRem}`;
+      }
+    }
+
+    function renderLedgerTable() {
+      const tbody = document.getElementById('ledger-tbody');
+      if (!tbody) return;
+      const search = (document.getElementById('ledger-search-input')?.value || '').trim().toLowerCase();
+
+      const allCount = state.items.length;
+      const pendingCount = state.items.filter(i => !i.counted).length;
+      const countedCount = state.items.filter(i => i.counted).length;
+      const varCount = state.items.filter(i => i.counted && ((i.actualQty ?? 0) !== (i.sysActualQty || 0) || (i.actualLocation || i.sysLocation) !== i.sysLocation)).length;
+      const noLpCount = state.items.filter(i => i.isNoLp || String(i.lpn).startsWith('NO-LP')).length;
+
+      document.getElementById('cnt-all').textContent = allCount;
+      document.getElementById('cnt-pending').textContent = pendingCount;
+      document.getElementById('cnt-counted').textContent = countedCount;
+      document.getElementById('cnt-variance').textContent = varCount;
+      document.getElementById('cnt-nolp').textContent = noLpCount;
+
+      const filtered = state.items.filter(item => {
+        if (state.tableFilter === 'PENDING' && item.counted) return false;
+        if (state.tableFilter === 'COUNTED' && !item.counted) return false;
+        if (state.tableFilter === 'VARIANCE') {
+          const hasVar = item.counted && ((item.actualQty ?? 0) !== (item.sysActualQty || 0) || (item.actualLocation || item.sysLocation) !== item.sysLocation);
+          if (!hasVar) return false;
+        }
+        if (state.tableFilter === 'NOLP' && !(item.isNoLp || String(item.lpn).startsWith('NO-LP'))) return false;
+
+        if (search) {
+          const hay = `${item.lpn} ${item.sysLocation} ${item.actualLocation} ${item.itemId} ${item.itemName} ${item.inboundNo} ${item.poNo}`.toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-400 text-xs">No matching pallet records in current view.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const diff = item.counted ? ((item.actualQty ?? 0) - (item.sysActualQty || 0)) : null;
+        const locChanged = item.counted && (item.actualLocation || item.sysLocation) !== item.sysLocation;
+        const isActive = item.id === state.activeItemId;
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">Pending</span>`;
+        if (item.counted) {
+          if (diff === 0 && !locChanged) {
+            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">Matched</span>`;
+          } else {
+            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400">Variance</span>`;
+          }
+        }
+
+        return `
+          <tr data-row-item-id="${escapeHtml(item.id)}" class="cursor-pointer transition hover:bg-indigo-50/60 dark:hover:bg-slate-800/70 ${isActive ? 'bg-indigo-50 dark:bg-indigo-950/40' : ''}">
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-800 dark:text-slate-100">
+              <div class="flex items-center gap-1.5">
+                <span>${escapeHtml(item.lpn)}</span>
+                <button type="button" data-copy-text="${escapeHtml(item.lpn)}" title="Copy LP" class="text-slate-400 hover:text-indigo-500">&#10697;</button>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-0.5">
+                ${item.inboundNo ? `<span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">INB: ${escapeHtml(item.inboundNo)}</span>` : ''}
+                ${item.poNo ? `<span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">PO: ${escapeHtml(item.poNo)}</span>` : ''}
+              </div>
+            </td>
+            <td class="py-2.5 px-2.5 font-mono font-bold">
+              <span>${escapeHtml(item.sysLocation || '--')}</span>
+              ${locChanged ? `<span class="block text-[10px] text-amber-600">&rarr; ${escapeHtml(item.actualLocation)}</span>` : ''}
+            </td>
+            <td class="py-2.5 px-2.5">
+              <div class="font-mono font-bold text-indigo-600 dark:text-indigo-400">${escapeHtml(item.itemId)}</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[220px]">${escapeHtml(item.itemName)}</div>
+            </td>
+            <td class="py-2.5 px-2 text-right font-mono font-bold">${item.sysActualQty}</td>
+            <td class="py-2.5 px-2 text-right font-mono text-amber-600">${item.sysAllocQty}</td>
+            <td class="py-2.5 px-2 text-right font-mono text-sky-600">${item.sysAvailQty}</td>
+            <td class="py-2.5 px-2 text-right font-mono font-extrabold ${item.counted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}">
+              ${item.counted ? item.actualQty : '--'}
+            </td>
+            <td class="py-2.5 px-2 text-right font-mono font-bold ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-rose-600'}">
+              ${diff === null ? '--' : `${diff > 0 ? '+' : ''}${diff}`}
+            </td>
+            <td class="py-2.5 px-3 text-center">${statusBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function populateNoLpCatalog() {
+      const datalist = document.getElementById('sku-catalog-datalist');
+      const linkSel = document.getElementById('nolp-link-lp-select');
+      const bySku = new Map();
+      state.items.forEach(item => {
+        if (!item.itemId) return;
+        const prev = bySku.get(item.itemId) || { itemId: item.itemId, itemName: item.itemName, sysActual: 0, sysAlloc: 0, sysRem: 0, bays: new Set() };
+        prev.sysActual += item.sysActualQty || 0;
+        prev.sysAlloc += item.sysAllocQty || 0;
+        prev.sysRem += item.sysAvailQty || 0;
+        if (item.sysLocation) prev.bays.add(item.sysLocation);
+        bySku.set(item.itemId, prev);
+      });
+
+      if (datalist) {
+        datalist.innerHTML = Array.from(bySku.values())
+          .map(s => `<option value="${escapeHtml(s.itemId)}">${escapeHtml(s.itemName)} (Sys: ${s.sysActual})</option>`)
+          .join('');
+      }
+      if (linkSel) {
+        const uncounted = state.items.filter(i => !i.counted && !i.isNoLp);
+        linkSel.innerHTML = `<option value="">-- Standalone Missing-LP (NO-LP-XXX) --</option>` +
+          uncounted.map(i => `<option value="${escapeHtml(i.id)}">Link to ${escapeHtml(i.lpn)} (${escapeHtml(i.itemId)} @ ${escapeHtml(i.sysLocation)})</option>`).join('');
+      }
+    }
+
+    function buildItemLevelSummaryRows() {
+      const map = new Map();
+      state.items.forEach(item => {
+        const key = item.itemId || item.itemName || 'UNKNOWN';
+        const row = map.get(key) || {
+          itemId: item.itemId || 'UNKNOWN',
+          itemName: item.itemName || '',
+          palletsTotal: 0,
+          palletsCounted: 0,
+          noLpCount: 0,
+          sysActual: 0,
+          sysAlloc: 0,
+          sysRem: 0,
+          physCounted: 0,
+          locations: new Set()
+        };
+        row.palletsTotal += 1;
+        if (item.counted) {
+          row.palletsCounted += 1;
+          row.physCounted += item.actualQty ?? 0;
+        }
+        if (item.isNoLp || String(item.lpn).startsWith('NO-LP')) row.noLpCount += 1;
+        row.sysActual += item.sysActualQty || 0;
+        row.sysAlloc += item.sysAllocQty || 0;
+        row.sysRem += item.sysAvailQty || 0;
+        if (item.actualLocation || item.sysLocation) row.locations.add(item.actualLocation || item.sysLocation);
+        map.set(key, row);
+      });
+
+      return Array.from(map.values()).map(r => ({
+        ...r,
+        varianceVsSys: r.physCounted - r.sysActual,
+        locationsStr: Array.from(r.locations).join(', ')
+      }));
+    }
+
+    function renderFinalReport() {
+      const thead = document.getElementById('report-thead');
+      const tbody = document.getElementById('report-tbody');
+      const tfoot = document.getElementById('report-tfoot');
+      const meta = document.getElementById('report-meta-line');
+      const chips = document.getElementById('report-summary-chips');
+      if (!thead || !tbody || !tfoot) return;
+
+      const countedCount = state.items.filter(i => i.counted).length;
+      if (meta) meta.textContent = `Warehouse: ${state.activeWarehouse} • Source: ${state.sourceLabel} • Generated: ${new Date().toLocaleString()}`;
+      if (chips) {
+        chips.innerHTML = `
+          <span class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-bold">Audited: ${countedCount}/${state.items.length}</span>
+        `;
+      }
+
+      if (state.reportViewMode === 'ITEM') {
+        const rows = buildItemLevelSummaryRows();
+        thead.innerHTML = `
+          <tr>
+            <th class="py-2 px-2.5">Item ID</th>
+            <th class="py-2 px-2.5">Description</th>
+            <th class="py-2 px-2 text-center">Pallets</th>
+            <th class="py-2 px-2 text-right">Sys Actual</th>
+            <th class="py-2 px-2 text-right">Alloc</th>
+            <th class="py-2 px-2 text-right">Rem</th>
+            <th class="py-2 px-2 text-right">Counted</th>
+            <th class="py-2 px-2 text-right">Diff</th>
+            <th class="py-2 px-2.5">Bays</th>
+          </tr>
+        `;
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td class="py-2 px-2.5 font-mono font-bold">${escapeHtml(r.itemId)}</td>
+            <td class="py-2 px-2.5">${escapeHtml(r.itemName)}</td>
+            <td class="py-2 px-2 text-center font-mono">${r.palletsCounted}/${r.palletsTotal}</td>
+            <td class="py-2 px-2 text-right font-mono">${r.sysActual}</td>
+            <td class="py-2 px-2 text-right font-mono">${r.sysAlloc}</td>
+            <td class="py-2 px-2 text-right font-mono">${r.sysRem}</td>
+            <td class="py-2 px-2 text-right font-mono font-bold">${r.physCounted}</td>
+            <td class="py-2 px-2 text-right font-mono font-bold ${r.varianceVsSys === 0 ? 'text-emerald-600' : 'text-rose-600'}">${r.varianceVsSys > 0 ? '+' : ''}${r.varianceVsSys}</td>
+            <td class="py-2 px-2.5 font-mono text-[11px]">${escapeHtml(r.locationsStr)}</td>
+          </tr>
+        `).join('');
+        const totSys = rows.reduce((s, r) => s + r.sysActual, 0);
+        const totCnt = rows.reduce((s, r) => s + r.physCounted, 0);
+        const totDiff = totCnt - totSys;
+        tfoot.innerHTML = `
+          <tr>
+            <td colspan="3" class="py-2 px-2.5">Grand Total (${rows.length} SKUs)</td>
+            <td class="py-2 px-2 text-right font-mono">${totSys}</td>
+            <td class="py-2 px-2 text-right font-mono">${rows.reduce((s, r) => s + r.sysAlloc, 0)}</td>
+            <td class="py-2 px-2 text-right font-mono">${rows.reduce((s, r) => s + r.sysRem, 0)}</td>
+            <td class="py-2 px-2 text-right font-mono">${totCnt}</td>
+            <td class="py-2 px-2 text-right font-mono ${totDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}">${totDiff > 0 ? '+' : ''}${totDiff}</td>
+            <td></td>
+          </tr>
+        `;
+      } else {
+        thead.innerHTML = `
+          <tr>
+            <th class="py-2 px-2.5">Pallet LP</th>
+            <th class="py-2 px-2">Sys Loc</th>
+            <th class="py-2 px-2">Act Loc</th>
+            <th class="py-2 px-2.5">Item ID / Name</th>
+            <th class="py-2 px-2 text-right">Sys Actual</th>
+            <th class="py-2 px-2 text-right">Counted</th>
+            <th class="py-2 px-2 text-right">Diff</th>
+            <th class="py-2 px-2.5">Status / Notes</th>
+          </tr>
+        `;
+        tbody.innerHTML = state.items.map(i => {
+          const diff = i.counted ? ((i.actualQty ?? 0) - (i.sysActualQty || 0)) : null;
+          return `
+            <tr>
+              <td class="py-2 px-2.5 font-mono font-bold">${escapeHtml(i.lpn)}</td>
+              <td class="py-2 px-2 font-mono">${escapeHtml(i.sysLocation)}</td>
+              <td class="py-2 px-2 font-mono">${escapeHtml(i.actualLocation || i.sysLocation)}</td>
+              <td class="py-2 px-2.5"><span class="font-mono font-bold">${escapeHtml(i.itemId)}</span> — ${escapeHtml(i.itemName)}</td>
+              <td class="py-2 px-2 text-right font-mono">${i.sysActualQty}</td>
+              <td class="py-2 px-2 text-right font-mono font-bold">${i.counted ? i.actualQty : '--'}</td>
+              <td class="py-2 px-2 text-right font-mono font-bold ${diff === null ? '' : diff === 0 ? 'text-emerald-600' : 'text-rose-600'}">${diff === null ? '--' : `${diff > 0 ? '+' : ''}${diff}`}</td>
+              <td class="py-2 px-2.5">${i.counted ? (diff === 0 ? 'Matched' : 'Variance') : 'Pending'}${i.reasonCode ? ` (${escapeHtml(i.reasonCode)})` : ''}</td>
+            </tr>
+          `;
+        }).join('');
+        const totSys = state.items.reduce((s, i) => s + (i.sysActualQty || 0), 0);
+        const totCnt = state.items.filter(i => i.counted).reduce((s, i) => s + (i.actualQty ?? 0), 0);
+        const totDiff = totCnt - totSys;
+        tfoot.innerHTML = `
+          <tr>
+            <td colspan="4" class="py-2 px-2.5">Grand Total (${state.items.length} Pallets)</td>
+            <td class="py-2 px-2 text-right font-mono">${totSys}</td>
+            <td class="py-2 px-2 text-right font-mono">${totCnt}</td>
+            <td class="py-2 px-2 text-right font-mono ${totDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}">${totDiff > 0 ? '+' : ''}${totDiff}</td>
+            <td></td>
+          </tr>
+        `;
+      }
+    }
+
+    function renderAll() {
+      renderHeaderAndKPIs();
+      renderQuickLpChips();
+      renderLedgerTable();
+      populateNoLpCatalog();
+      updateAuthUi();
+    }
+
+    // -------------------------------------------------------------------------
+    // APPLICATION BOOTSTRAP & EVENT WIRING
+    // -------------------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+      const hadSaved = loadSavedState();
+      if (!hadSaved) {
+        state.items = normalizeRowsToItems(SAMPLE_STOCK_BY_INVENTORY);
+        state.sourceLabel = 'stock_by_inventory Sample';
+      }
+      loadSavedCredentials();
+      renderAll();
+
+      if (state.pendingSyncQueue.length > 0) {
+        GoogleSheetCloudSync.flushQueue();
+      }
+      window.addEventListener('online', () => GoogleSheetCloudSync.flushQueue());
+
+      // Header Warehouse Switcher (isolates storage per warehouse)
+      document.getElementById('header-wh-select')?.addEventListener('change', (e) => {
+        saveState();
+        state.activeWarehouse = e.target.value;
+        authSession.selectedWarehouse = state.activeWarehouse;
+        loadWarehouseBucket(state.activeWarehouse);
+        saveState();
+        document.getElementById('comparison-active-panel')?.classList.add('hidden');
+        document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+        renderAll();
+        showToast(`Switched active warehouse to ${state.activeWarehouse}`, 'info');
+      });
+
+      // Top Toolbar Buttons
+      document.getElementById('open-import-btn')?.addEventListener('click', () => openModal('import-modal'));
+      document.getElementById('open-wms-btn')?.addEventListener('click', () => openModal('wms-modal'));
+      document.getElementById('open-report-btn')?.addEventListener('click', () => {
+        renderFinalReport();
+        openModal('report-modal');
+      });
+
+      document.querySelectorAll('[data-close-modal]').forEach(btn => {
+        btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
+      });
+
+      // Sound & Theme Toggles
+      document.getElementById('toggle-sound-btn')?.addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        document.getElementById('sound-on-icon')?.classList.toggle('hidden', !state.soundEnabled);
+        document.getElementById('sound-off-icon')?.classList.toggle('hidden', state.soundEnabled);
+        saveState();
+        showToast(`Scanner audio ${state.soundEnabled ? 'enabled' : 'muted'}`, 'info');
+      });
+
+      document.getElementById('toggle-theme-btn')?.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+      });
+
+      // Scanner Mode Tabs (1. Scan Pallet LP vs 2. No LP — Scan Item)
+      document.getElementById('mode-lp-btn')?.addEventListener('click', () => {
+        state.scannerMode = 'LP';
+        document.getElementById('lp-scanner-section')?.classList.remove('hidden');
+        document.getElementById('nolp-scanner-section')?.classList.add('hidden');
+        document.getElementById('mode-lp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-600 text-white shadow-sm transition min-h-[36px] truncate';
+        document.getElementById('mode-nolp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800 transition min-h-[36px] truncate';
+        document.getElementById('lp-scan-input')?.focus();
+      });
+
+      document.getElementById('mode-nolp-btn')?.addEventListener('click', () => {
+        state.scannerMode = 'NOLP';
+        document.getElementById('nolp-scanner-section')?.classList.remove('hidden');
+        document.getElementById('lp-scanner-section')?.classList.add('hidden');
+        document.getElementById('mode-nolp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-purple-600 text-white shadow-sm transition min-h-[36px] truncate';
+        document.getElementById('mode-lp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800 transition min-h-[36px] truncate';
+        document.getElementById('nolp-item-input')?.focus();
+      });
+
+      // Scan Pallet LP Form
+      document.getElementById('lp-scan-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const inp = document.getElementById('lp-scan-input');
+        const rawLp = (inp?.value || '').trim().toUpperCase();
+        if (!rawLp) return;
+
+        let match = state.items.find(i => i.lpn === rawLp);
+        if (!match) {
+          match = {
+            id: `blind_${rawLp}_${Date.now()}`,
+            lpn: rawLp,
+            inboundNo: '',
+            poNo: '',
+            customerNo: '',
+            customerName: 'Unlisted Blind LP',
+            warehouseId: state.activeWarehouse,
+            sysLocation: '',
+            actualLocation: '',
+            itemId: 'UNLISTED',
+            itemName: 'Unlisted Pallet LP',
+            barcode: rawLp,
+            sysActualQty: 0,
+            sysAllocQty: 0,
+            sysAvailQty: 0,
+            actualQty: null,
+            counted: false,
+            isNoLp: false,
+            reasonCode: '',
+            notes: 'Scanned blind LP not in system list',
+            countedAt: ''
+          };
+          state.items.unshift(match);
+          saveState();
+          renderAll();
+          playScannerBeep(false);
+          showToast(`LP ${rawLp} not in system list — opened as blind add.`, 'warn');
+        } else {
+          playScannerBeep(true);
+        }
+        inp.value = '';
+        selectItemForCount(match.id);
+        renderLedgerTable();
+      });
+
+      document.getElementById('clear-lp-input-btn')?.addEventListener('click', () => {
+        const inp = document.getElementById('lp-scan-input');
+        if (inp) { inp.value = ''; inp.focus(); }
+      });
+
+      document.getElementById('next-pending-lp-btn')?.addEventListener('click', () => {
+        const next = state.items.find(i => !i.counted);
+        if (!next) {
+          showToast('All pallets have been audited!', 'success');
+          return;
+        }
+        selectItemForCount(next.id);
+        renderLedgerTable();
+      });
+
+      document.getElementById('quick-lp-chips')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-select-item-id]');
+        if (!btn) return;
+        selectItemForCount(btn.getAttribute('data-select-item-id'));
+        renderLedgerTable();
+      });
+
+      // Physical Count Stepper & Submit Form
+      document.getElementById('qty-minus-btn')?.addEventListener('click', () => {
+        const inp = document.getElementById('phys-qty-input');
+        if (!inp) return;
+        inp.value = Math.max(0, Number(inp.value || 0) - 1);
+        updateLiveCountVarianceBadges();
+      });
+
+      document.getElementById('qty-plus-btn')?.addEventListener('click', () => {
+        const inp = document.getElementById('phys-qty-input');
+        if (!inp) return;
+        inp.value = Number(inp.value || 0) + 1;
+        updateLiveCountVarianceBadges();
+      });
+
+      document.getElementById('match-actual-qty-btn')?.addEventListener('click', () => {
+        const item = state.items.find(i => i.id === state.activeItemId);
+        const inp = document.getElementById('phys-qty-input');
+        if (item && inp) {
+          inp.value = item.sysActualQty;
+          updateLiveCountVarianceBadges();
+        }
+      });
+
+      document.getElementById('match-rem-qty-btn')?.addEventListener('click', () => {
+        const item = state.items.find(i => i.id === state.activeItemId);
+        const inp = document.getElementById('phys-qty-input');
+        if (item && inp) {
+          inp.value = item.sysAvailQty;
+          updateLiveCountVarianceBadges();
+        }
+      });
+
+      document.getElementById('phys-qty-input')?.addEventListener('input', updateLiveCountVarianceBadges);
+
+      document.getElementById('lp-count-submit-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const item = state.items.find(i => i.id === state.activeItemId);
+        if (!item) return;
+
+        const physQty = Math.max(0, Number(document.getElementById('phys-qty-input')?.value || 0));
+        const physLoc = (document.getElementById('phys-loc-input')?.value || item.sysLocation || '').trim().toUpperCase();
+        const physItemName = (document.getElementById('phys-item-input')?.value || item.itemName || '').trim();
+        const reasonCode = document.getElementById('phys-reason-select')?.value || '';
+        const notes = (document.getElementById('phys-notes-input')?.value || '').trim();
+
+        item.actualQty = physQty;
+        item.actualLocation = physLoc;
+        if (physItemName) item.itemName = physItemName;
+        item.reasonCode = reasonCode;
+        item.notes = notes;
+        item.counted = true;
+        item.countedAt = new Date().toISOString();
+
+        const hasQtyDiff = physQty !== (item.sysActualQty || 0);
+        const scannerCard = document.getElementById('scanner-console-card');
+        if (hasQtyDiff) {
+          playScannerBeep(false);
+          scannerCard?.classList.remove('scan-flash-ok', 'scan-flash-warn');
+          void scannerCard?.offsetWidth;
+          scannerCard?.classList.add('scan-flash-warn');
+          showToast(`Variance recorded on ${item.lpn}: Counted ${physQty} vs Sys ${item.sysActualQty}`, 'warn');
+        } else {
+          playScannerBeep(true);
+          scannerCard?.classList.remove('scan-flash-ok', 'scan-flash-warn');
+          void scannerCard?.offsetWidth;
+          scannerCard?.classList.add('scan-flash-ok');
+          showToast(`Saved ${item.lpn}: ${physQty} units matched.`, 'success');
+        }
+
+        saveState();
+        GoogleSheetCloudSync.enqueueRecord(item);
+        renderAll();
+
+        // Automatically jump cursor back to Scan Pallet LP field
+        const lpInp = document.getElementById('lp-scan-input');
+        if (lpInp) {
+          lpInp.value = '';
+          lpInp.focus();
+        }
+      });
+
+      document.getElementById('cancel-comp-btn')?.addEventListener('click', () => {
+        state.activeItemId = null;
+        document.getElementById('comparison-active-panel')?.classList.add('hidden');
+        document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+        renderLedgerTable();
+        document.getElementById('lp-scan-input')?.focus();
+      });
+
+      // No-LP Mode Handlers
+      document.getElementById('nolp-item-scan-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const rawCode = (document.getElementById('nolp-item-input')?.value || '').trim().toUpperCase();
+        if (!rawCode) return;
+        state.selectedNoLpItemCode = rawCode;
+
+        const matching = state.items.filter(i => i.itemId === rawCode || i.barcode === rawCode || i.itemName.toUpperCase().includes(rawCode));
+        const summaryBox = document.getElementById('nolp-sku-summary-box');
+        if (matching.length > 0 && summaryBox) {
+          const first = matching[0];
+          const bays = Array.from(new Set(matching.map(m => m.sysLocation).filter(Boolean)));
+          document.getElementById('nolp-matched-sku').textContent = first.itemId;
+          document.getElementById('nolp-known-bays').textContent = `Bays: ${bays.join(', ') || '--'}`;
+          document.getElementById('nolp-matched-desc').textContent = first.itemName;
+          document.getElementById('nolp-sys-actual').textContent = matching.reduce((s, m) => s + (m.sysActualQty || 0), 0);
+          document.getElementById('nolp-sys-alloc').textContent = matching.reduce((s, m) => s + (m.sysAllocQty || 0), 0);
+          document.getElementById('nolp-sys-rem').textContent = matching.reduce((s, m) => s + (m.sysAvailQty || 0), 0);
+          summaryBox.classList.remove('hidden');
+          const locInp = document.getElementById('nolp-location-input');
+          if (locInp && !locInp.value && bays[0]) locInp.value = bays[0];
+        } else {
+          summaryBox?.classList.add('hidden');
+        }
+        document.getElementById('nolp-location-input')?.focus();
+      });
+
+      document.getElementById('nolp-save-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const rawSku = (document.getElementById('nolp-item-input')?.value || state.selectedNoLpItemCode || '').trim().toUpperCase();
+        const loc = (document.getElementById('nolp-location-input')?.value || '').trim().toUpperCase();
+        const qty = Math.max(0, Number(document.getElementById('nolp-qty-input')?.value || 0));
+        const linkId = document.getElementById('nolp-link-lp-select')?.value || '';
+        const notes = (document.getElementById('nolp-notes-input')?.value || '').trim();
+
+        if (!rawSku || !loc) {
+          showToast('Please scan an item barcode and enter location.', 'warn');
+          return;
+        }
+
+        let targetItem;
+        if (linkId) {
+          targetItem = state.items.find(i => i.id === linkId);
+        }
+
+        if (targetItem) {
+          targetItem.actualQty = qty;
+          targetItem.actualLocation = loc;
+          targetItem.counted = true;
+          targetItem.isNoLp = true;
+          targetItem.notes = notes ? `[No-LP] ${notes}` : '[No-LP Verified]';
+          targetItem.countedAt = new Date().toISOString();
+          playScannerBeep(qty === (targetItem.sysActualQty || 0));
+        } else {
+          const seq = state.items.filter(i => String(i.lpn).startsWith('NO-LP')).length + 1;
+          const noLpCode = `NO-LP-${String(seq).padStart(3, '0')}`;
+          const refItem = state.items.find(i => i.itemId === rawSku || i.barcode === rawSku);
+          targetItem = {
+            id: `nolp_${Date.now()}`,
+            lpn: noLpCode,
+            inboundNo: '',
+            poNo: '',
+            customerNo: refItem?.customerNo || '',
+            customerName: refItem?.customerName || '',
+            warehouseId: state.activeWarehouse,
+            sysLocation: loc,
+            actualLocation: loc,
+            itemId: refItem?.itemId || rawSku,
+            itemName: refItem?.itemName || rawSku,
+            barcode: rawSku,
+            sysActualQty: 0,
+            sysAllocQty: 0,
+            sysAvailQty: 0,
+            actualQty: qty,
+            counted: true,
+            isNoLp: true,
+            reasonCode: 'Missing LP Label',
+            notes,
+            countedAt: new Date().toISOString()
+          };
+          state.items.unshift(targetItem);
+          playScannerBeep(false);
+        }
+
+        saveState();
+        GoogleSheetCloudSync.enqueueRecord(targetItem);
+        renderAll();
+        showToast(`Saved ${targetItem.lpn}: ${qty} units of ${targetItem.itemId} @ ${loc}`, 'success');
+
+        document.getElementById('nolp-item-input').value = '';
+        document.getElementById('nolp-location-input').value = '';
+        document.getElementById('nolp-qty-input').value = '';
+        document.getElementById('nolp-notes-input').value = '';
+        document.getElementById('nolp-sku-summary-box')?.classList.add('hidden');
+        document.getElementById('nolp-item-input')?.focus();
+      });
+
+      // Live Pallet Audit Ledger Controls
+      document.querySelectorAll('.ledger-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          state.tableFilter = tab.getAttribute('data-ledger-filter') || 'ALL';
+          document.querySelectorAll('.ledger-tab').forEach(t => {
+            t.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400';
+          });
+          tab.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm';
+          renderLedgerTable();
+        });
+      });
+
+      document.getElementById('ledger-search-input')?.addEventListener('input', renderLedgerTable);
+
+      document.getElementById('ledger-tbody')?.addEventListener('click', (e) => {
+        const copyBtn = e.target.closest('[data-copy-text]');
+        if (copyBtn) {
+          e.stopPropagation();
+          copyTextToClipboard(copyBtn.getAttribute('data-copy-text'));
+          return;
+        }
+        const row = e.target.closest('[data-row-item-id]');
+        if (row) {
+          selectItemForCount(row.getAttribute('data-row-item-id'));
+          renderLedgerTable();
+        }
+      });
+
+      document.getElementById('copy-visible-ledger-btn')?.addEventListener('click', () => {
+        const header = ['Warehouse', 'Pallet LP', 'Inbound ID', 'PO No', 'Sys Loc', 'Act Loc', 'Item ID', 'Description', 'Sys Actual', 'Alloc', 'Rem', 'Counted', 'Diff'].join('\t');
+        const lines = state.items.map(i => [
+          i.warehouseId || state.activeWarehouse,
+          i.lpn,
+          i.inboundNo || '',
+          i.poNo || '',
+          i.sysLocation,
+          i.actualLocation || i.sysLocation,
+          i.itemId,
+          i.itemName,
+          i.sysActualQty,
+          i.sysAllocQty,
+          i.sysAvailQty,
+          i.counted ? i.actualQty : '',
+          i.counted ? (i.actualQty - i.sysActualQty) : ''
+        ].join('\t'));
+        copyTextToClipboard([header, ...lines].join('\n'), `Copied ${lines.length} rows (TSV) for Excel`);
+      });
+
+      // WMS Login & Warehouse Apply Handlers
+      const triggerLogin = async () => {
+        const user = document.getElementById('wms-login-username')?.value || '';
+        const pass = document.getElementById('wms-login-password')?.value || '';
+        const fb = document.getElementById('wms-login-feedback');
+        const btn = document.getElementById('wms-login-btn');
+        if (!user.trim() || !pass) {
+          if (fb) {
+            fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300';
+            fb.textContent = 'Please enter both WMS username and password.';
+            fb.classList.remove('hidden');
+          }
+          return;
+        }
+        if (btn) btn.disabled = true;
+        if (fb) {
+          fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300';
+          fb.textContent = 'Signing in to WMS...';
+          fb.classList.remove('hidden');
+        }
+        try {
+          const res = await WmsAuthService.login(user, pass);
+          if (document.getElementById('wms-remember-creds')?.checked) {
+            localStorage.setItem(CREDS_STORAGE_KEY, JSON.stringify({
+              username: user.trim(),
+              password: pass,
+              baseUrl: document.getElementById('wms-base-url')?.value || ''
+            }));
+            document.getElementById('wms-clear-saved-creds-btn')?.classList.remove('hidden');
+          }
+          if (fb) {
+            fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300';
+            fb.textContent = `Signed in as ${res.displayName || user} (${authSession.archMode} mode).`;
+          }
+          showToast('WMS Sign-In successful!', 'success');
+        } catch (err) {
+          if (fb) {
+            fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300';
+            fb.textContent = err.message;
+          }
+          showToast(err.message, 'error');
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      };
+
+      document.getElementById('wms-login-btn')?.addEventListener('click', triggerLogin);
+      document.getElementById('wms-login-password')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); triggerLogin(); }
+      });
+
+      document.getElementById('wms-logout-btn')?.addEventListener('click', async () => {
+        await WmsAuthService.logout();
+        showToast('Signed out of WMS.', 'info');
+      });
+
+      document.getElementById('wms-clear-saved-creds-btn')?.addEventListener('click', () => {
+        localStorage.removeItem(CREDS_STORAGE_KEY);
+        document.getElementById('wms-login-username').value = '';
+        document.getElementById('wms-login-password').value = '';
+        document.getElementById('wms-remember-creds').checked = false;
+        document.getElementById('wms-clear-saved-creds-btn')?.classList.add('hidden');
+        showToast('Cleared saved WMS login credentials.', 'info');
+      });
+
+      document.getElementById('wms-apply-wh-btn')?.addEventListener('click', () => {
+        const chosenWh = WmsInventoryApiService.getSelectedWarehouseId();
+        if (!chosenWh) return;
+        saveState();
+        state.activeWarehouse = chosenWh;
+        state.warehouses = Array.from(new Set([...state.warehouses, chosenWh]));
+        authSession.selectedWarehouse = chosenWh;
+        loadWarehouseBucket(chosenWh);
+        saveState();
+        document.getElementById('wms-login-wh-custom').value = '';
+        updateAuthUi();
+        renderAll();
+        showToast(`Active warehouse set to ${chosenWh}`, 'success');
+      });
+
+      document.getElementById('gsheet-auto-enabled')?.addEventListener('change', (e) => {
+        state.googleSheetAutoSync = Boolean(e.target.checked);
+        saveState();
+        GoogleSheetCloudSync.updateStatusUi();
+        if (state.googleSheetAutoSync && state.pendingSyncQueue.length > 0) {
+          GoogleSheetCloudSync.flushQueue();
+        }
+      });
+
+      document.getElementById('gsheet-toggle-override-btn')?.addEventListener('click', () => {
+        document.getElementById('gsheet-override-box')?.classList.toggle('hidden');
+      });
+
+      const runGoogleSheetTest = async (urlToTest) => {
+        if (!urlToTest) return;
+        if (!urlToTest.includes('script.google.com/macros/')) {
+          showToast('URL should look like https://script.google.com/macros/s/.../exec', 'warn');
+          return;
+        }
+        GoogleSheetCloudSync.updateStatusUi('Testing Google Sheet Web App connection...', 'syncing');
+        try {
+          const pingRes = await fetch(urlToTest, { method: 'GET', redirect: 'follow' });
+          const text = await pingRes.text();
+          if (text.includes('Script function not found: doGet')) {
+            GoogleSheetCloudSync.updateStatusUi('Error: Redeploy Apps Script with "New version"!', 'error');
+            showToast('Apps Script still on old version! In Apps Script: Deploy -> Manage deployments -> Edit -> New version.', 'error');
+            return;
+          }
+          state.lastCloudSyncAt = new Date().toLocaleTimeString();
+          saveState();
+          GoogleSheetCloudSync.updateStatusUi(`Connected & Verified at ${state.lastCloudSyncAt}`, 'ok');
+          showToast('Google Sheet Web App connected! Every count syncs automatically.', 'success');
+        } catch (err) {
+          GoogleSheetCloudSync.updateStatusUi('Built-in sync active (iframe CORS mode)', 'ok');
+          showToast('Google Sheet sync ready! Record a count to verify row insertion.', 'success');
+        }
+      };
+
+      document.getElementById('gsheet-test-now-btn')?.addEventListener('click', () => {
+        runGoogleSheetTest(GoogleSheetCloudSync.getEffectiveUrl());
+      });
+
+      document.getElementById('gsheet-save-url-btn')?.addEventListener('click', async () => {
+        const urlVal = (document.getElementById('gsheet-webapp-url')?.value || '').trim();
+        state.googleSheetUrl = urlVal || DEFAULT_GOOGLE_SHEET_URL;
+        state.googleSheetAutoSync = Boolean(document.getElementById('gsheet-auto-enabled')?.checked);
+        saveState();
+        GoogleSheetCloudSync.updateStatusUi();
+        document.getElementById('gsheet-override-box')?.classList.add('hidden');
+        await runGoogleSheetTest(state.googleSheetUrl);
+        if (state.pendingSyncQueue.length > 0) {
+          GoogleSheetCloudSync.flushQueue();
+        }
+      });
+
+      document.getElementById('flt-add-loc-btn')?.addEventListener('click', addLocationTokensFromInput);
+      document.getElementById('flt-storage-code')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addLocationTokensFromInput(); }
+      });
+      document.getElementById('flt-loc-chips')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-loc]');
+        if (btn) {
+          const val = btn.getAttribute('data-remove-loc');
+          state.queryLocationIds = state.queryLocationIds.filter(l => l !== val);
+          renderMultiQueryChips();
+        }
+      });
+      document.getElementById('flt-clear-locs-btn')?.addEventListener('click', () => {
+        state.queryLocationIds = [];
+        document.getElementById('flt-storage-code').value = '';
+        renderMultiQueryChips();
+      });
+
+      document.getElementById('flt-add-sku-btn')?.addEventListener('click', addSkuTokensFromInput);
+      document.getElementById('flt-product-code')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addSkuTokensFromInput(); }
+      });
+      document.getElementById('flt-sku-chips')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-sku]');
+        if (btn) {
+          const val = btn.getAttribute('data-remove-sku');
+          state.queryItemCodes = state.queryItemCodes.filter(s => s !== val);
+          renderMultiQueryChips();
+        }
+      });
+      document.getElementById('flt-clear-skus-btn')?.addEventListener('click', () => {
+        state.queryItemCodes = [];
+        document.getElementById('flt-product-code').value = '';
+        renderMultiQueryChips();
+      });
+
+      ['flt-owner-no', 'flt-storage-code', 'flt-inbound-no', 'flt-inbound-op', 'flt-pallet-no', 'flt-pallet-op', 'flt-product-code', 'flt-sku-op', 'flt-po-no'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', updateRequestPayloadPreview);
+        document.getElementById(id)?.addEventListener('change', updateRequestPayloadPreview);
+      });
+
+      // Execute Paginated WMS Inventory Query
+      document.getElementById('wms-live-fetch-btn')?.addEventListener('click', async () => {
+        const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
+        if (archMode === 'DIRECT' && !authSession.token) {
+          showToast('Please sign in to WMS in Step 1 first.', 'warn');
+          return;
+        }
+
+        const fetchBtn = document.getElementById('wms-live-fetch-btn');
+        const stopBtn = document.getElementById('wms-stop-fetch-btn');
+        const statusEl = document.getElementById('wms-api-status-text');
+        const previewEl = document.getElementById('wms-payload-preview');
+
+        activeFetchAbortController = new AbortController();
+        fetchBtn.disabled = true;
+        stopBtn?.classList.remove('hidden');
+        if (statusEl) statusEl.textContent = 'Querying WMS...';
+
+        try {
+          const { items, sampleRaw } = await WmsInventoryApiService.fetchAllPages((loaded, total) => {
+            if (statusEl) statusEl.textContent = total ? `Loaded ${loaded} / ${total} rows...` : `Loaded ${loaded} rows...`;
+          }, activeFetchAbortController.signal);
+
+          if (previewEl) {
+            previewEl.textContent = JSON.stringify({
+              status: 'SUCCESS',
+              totalFetched: items.length,
+              sampleMappedRecord: items[0] || null,
+              sampleRawWmsRecord: sampleRaw || null
+            }, null, 2);
+          }
+
+          if (!items.length) {
+            showToast('WMS query returned 0 matching records.', 'warn');
+            if (statusEl) statusEl.textContent = '0 records returned';
+            return;
+          }
+
+          const syncMode = document.getElementById('wms-sync-mode')?.value || 'REPLACE';
+          const whId = WmsInventoryApiService.getSelectedWarehouseId();
+          applyImportedItems(items, `WMS API (${whId})`, syncMode === 'REPLACE');
+          if (statusEl) statusEl.textContent = `Imported ${items.length} pallets`;
+          showToast(`Imported ${items.length} pallet records from WMS (${whId}).`, 'success');
+          closeModal('wms-modal');
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            if (statusEl) statusEl.textContent = 'Query stopped by user';
+            showToast('WMS inventory query cancelled.', 'info');
+          } else {
+            if (statusEl) statusEl.textContent = 'Query failed';
+            if (previewEl) previewEl.textContent = JSON.stringify({ status: 'ERROR', message: err.message }, null, 2);
+            showToast(err.message, 'error');
+          }
+        } finally {
+          fetchBtn.disabled = false;
+          stopBtn?.classList.add('hidden');
+          activeFetchAbortController = null;
+        }
+      });
+
+      document.getElementById('wms-stop-fetch-btn')?.addEventListener('click', () => {
+        activeFetchAbortController?.abort();
+      });
+
+      // Import File Upload (.xls / .xlsx / .csv / .json)
+      document.getElementById('file-upload-input')?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          let rows = [];
+          if (file.name.toLowerCase().endsWith('.json')) {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            rows = Array.isArray(parsed) ? parsed : (parsed.rows || parsed.data || []);
+          } else {
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            const firstSheet = wb.Sheets[wb.SheetNames[0]];
+            rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+          }
+          const items = normalizeRowsToItems(rows);
+          if (!items.length) {
+            showToast('No valid inventory rows found in uploaded file.', 'warn');
+            return;
+          }
+          applyImportedItems(items, file.name, true);
+          closeModal('import-modal');
+          showToast(`Loaded ${items.length} rows from ${file.name}`, 'success');
+        } catch (err) {
+          showToast(`Failed to parse file: ${err.message}`, 'error');
+        } finally {
+          e.target.value = '';
+        }
+      });
+
+      document.getElementById('download-template-xlsx-btn')?.addEventListener('click', () => {
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(SAMPLE_STOCK_BY_INVENTORY), 'stock_by_inventory');
+        XLSX.writeFile(wb, 'stock_by_inventory_template.xls');
+      });
+
+      document.getElementById('restore-sample-btn')?.addEventListener('click', () => {
+        applyImportedItems(normalizeRowsToItems(SAMPLE_STOCK_BY_INVENTORY), 'stock_by_inventory Sample', true);
+        closeModal('import-modal');
+        showToast('Restored built-in sample inventory.', 'info');
+      });
+
+      // Final Report View Toggle & Exports
+      document.getElementById('rep-view-pallet-btn')?.addEventListener('click', () => {
+        state.reportViewMode = 'PALLET';
+        document.getElementById('rep-view-pallet-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white';
+        document.getElementById('rep-view-item-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300';
+        renderFinalReport();
+      });
+
+      document.getElementById('rep-view-item-btn')?.addEventListener('click', () => {
+        state.reportViewMode = 'ITEM';
+        document.getElementById('rep-view-item-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white';
+        document.getElementById('rep-view-pallet-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300';
+        renderFinalReport();
+      });
+
+      document.getElementById('export-xlsx-btn')?.addEventListener('click', () => {
+        const itemRows = buildItemLevelSummaryRows().map(r => ({
+          'Warehouse ID': state.activeWarehouse,
+          'Item ID': r.itemId,
+          'Item Description': r.itemName,
+          'Pallets Audited': r.palletsCounted,
+          'Pallets Total': r.palletsTotal,
+          'No-LP Pallets': r.noLpCount,
+          'Total Sys Actual': r.sysActual,
+          'Total Allocation': r.sysAlloc,
+          'Total Remaining': r.sysRem,
+          'Total Counted': r.physCounted,
+          'Net Diff (vs Sys)': r.varianceVsSys,
+          'Observed Bays': r.locationsStr
+        }));
+
+        const palletRows = state.items.map(i => ({
+          'Warehouse ID': i.warehouseId || state.activeWarehouse,
+          'Pallet LP': i.lpn,
+          'Inbound ID': i.inboundNo || '',
+          'PO No': i.poNo || '',
+          'Sys Location': i.sysLocation,
+          'Actual Location': i.actualLocation || i.sysLocation,
+          'Item ID': i.itemId,
+          'Item Description': i.itemName,
+          'Sys Actual': i.sysActualQty,
+          'Allocation': i.sysAllocQty,
+          'Remaining': i.sysAvailQty,
+          'Counted': i.counted ? i.actualQty : '',
+          'Variance': i.counted ? (i.actualQty - i.sysActualQty) : '',
+          'Status': i.counted ? 'Audited' : 'Pending',
+          'Reason': i.reasonCode || '',
+          'Notes': i.notes || ''
+        }));
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(palletRows), 'Pallet_Detail');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemRows), 'Item_Level_Summary');
+        XLSX.writeFile(wb, `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}.xlsx`);
+      });
+
+      document.getElementById('export-csv-btn')?.addEventListener('click', () => {
+        const rows = state.reportViewMode === 'ITEM'
+          ? buildItemLevelSummaryRows().map(r => ({
+              Warehouse: state.activeWarehouse,
+              ItemID: r.itemId,
+              ItemName: r.itemName,
+              SysActual: r.sysActual,
+              SysAlloc: r.sysAlloc,
+              SysRem: r.sysRem,
+              Counted: r.physCounted,
+              NetDiffVsSys: r.varianceVsSys
+            }))
+          : state.items.map(i => ({
+              Warehouse: i.warehouseId || state.activeWarehouse,
+              PalletLP: i.lpn,
+              InboundNo: i.inboundNo || '',
+              PONo: i.poNo || '',
+              SysLocation: i.sysLocation,
+              ActualLocation: i.actualLocation || i.sysLocation,
+              ItemID: i.itemId,
+              ItemName: i.itemName,
+              SysActual: i.sysActualQty,
+              Alloc: i.sysAllocQty,
+              Rem: i.sysAvailQty,
+              Counted: i.counted ? i.actualQty : '',
+              Variance: i.counted ? (i.actualQty - i.sysActualQty) : '',
+              Status: i.counted ? 'Audited' : 'Pending',
+              Reason: i.reasonCode || '',
+              Notes: i.notes || ''
+            }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Report');
+        XLSX.writeFile(wb, `CycleCountPro_${APP_VERSION}_${state.reportViewMode}.csv`, { bookType: 'csv' });
+      });
+
+      document.getElementById('print-report-btn')?.addEventListener('click', () => window.print());
+    });
+  </script>
+</body>
+</html>
