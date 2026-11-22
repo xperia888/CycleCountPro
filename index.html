@@ -2172,7 +2172,18 @@
     // -------------------------------------------------------------------------
     // APPLICATION BOOTSTRAP & EVENT WIRING
     // -------------------------------------------------------------------------
-    document.addEventListener('DOMContentLoaded', () => {
+    // Apps Script (HtmlService) writes this page into its sandbox frame, and
+    // DOMContentLoaded has often already fired before this script runs. Start the
+    // app either way so buttons, sample data and sheet sync are always wired up.
+    function onAppReady(fn) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn, { once: true });
+      } else {
+        fn();
+      }
+    }
+
+    onAppReady(() => {
       const hadSaved = loadSavedState();
       if (!hadSaved) {
         state.items = normalizeRowsToItems(SAMPLE_STOCK_BY_INVENTORY);
