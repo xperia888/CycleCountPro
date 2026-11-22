@@ -622,7 +622,7 @@
           <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
             <label class="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400 cursor-pointer">
               <input id="wms-remember-creds" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
-              <span>Save username &amp; password on this device</span>
+              <span>Remember username &amp; server on this device</span>
             </label>
             <button id="wms-clear-saved-creds-btn" type="button" class="hidden text-rose-500 hover:underline font-semibold">Forget Saved Login</button>
           </div>
@@ -835,13 +835,33 @@
     const GLOBAL_PREFS_KEY = 'wms_cyclecount_global_prefs_v2';
     const CREDS_STORAGE_KEY = 'wms_cyclecount_saved_creds_v1';
     const IDLE_LOGOUT_MS = 60 * 60 * 1000;
-    // Built-in default Google Apps Script Web App URL (and optional ?gsheet=... query param support)
-    const DEFAULT_GOOGLE_SHEET_URL = new URLSearchParams(window.location.search).get('gsheet')
-      || 'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec';
+    // Built-in default Google Apps Script Web App URL. A custom URL can only be set
+    // from the in-app "Change URL" box (no ?gsheet= query param, so a shared link
+    // cannot silently redirect count data to someone else's script).
+    const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec';
+
+    // True when this page is served by the Apps Script web app itself (HtmlService),
+    // in which case sync goes through google.script.run instead of fetch.
+    const IS_APPS_SCRIPT_HOSTED = typeof google !== 'undefined' && Boolean(google?.script?.run);
+
+    function callAppsScript(fnName, ...args) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(err => reject(err instanceof Error ? err : new Error(String(err?.message || err))))
+          [fnName](...args);
+      });
+    }
+
+    function newRecordId() {
+      if (window.crypto?.randomUUID) return crypto.randomUUID();
+      return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
 
     let activeFetchAbortController = null;
     let idleLogoutTimer = null;
     let isCloudSyncFlushing = false;
+    let syncRetryTimer = null;
     let audioCtx = null;
 
     const authSession = {
@@ -951,8 +971,12 @@
         const raw = localStorage.getItem(CREDS_STORAGE_KEY);
         if (!raw) return;
         const saved = JSON.parse(raw);
+        if (saved.password) {
+          // Older versions stored the password in plain text; strip it.
+          delete saved.password;
+          localStorage.setItem(CREDS_STORAGE_KEY, JSON.stringify(saved));
+        }
         if (saved.username) document.getElementById('wms-login-username').value = saved.username;
-        if (saved.password) document.getElementById('wms-login-password').value = saved.password;
         if (saved.baseUrl) {
           const baseInp = document.getElementById('wms-base-url');
           const epInp = document.getElementById('wms-endpoint-url');
@@ -1058,7 +1082,8 @@
             result = await attemptDirect();
           } catch (directErr) {
             // Auto-fallback to local Node proxy if browser blocks cross-origin/TLS to :18890
-            if (directErr instanceof TypeError && window.location.protocol.startsWith('http')) {
+            // (Not available when hosted by Apps Script: there is no Node proxy behind it.)
+            if (directErr instanceof TypeError && window.location.protocol.startsWith('http') && !IS_APPS_SCRIPT_HOSTED) {
               result = await attemptProxy();
               archMode = 'PROXY';
               if (archSelect) archSelect.value = 'PROXY';
@@ -1293,6 +1318,7 @@
         const targetUrl = this.getEffectiveUrl();
         if (!targetUrl || !state.googleSheetAutoSync) return;
         const record = {
+          recordId: newRecordId(),
           countedAt: item.countedAt || new Date().toISOString(),
           warehouseId: item.warehouseId || state.activeWarehouse,
           auditor: authSession.displayName || authSession.username || 'PDA-Operator',
@@ -1316,6 +1342,67 @@
         this.flushQueue();
       },
 
+      // Sends the queued batch and resolves with the recordIds the server confirmed
+      // as stored. Throws if the save cannot be confirmed; the batch then stays
+      // queued. Retrying is safe because the server skips recordIds it already has.
+      async sendBatch(targetUrl, batch) {
+        const payload = { warehouseId: state.activeWarehouse, records: batch };
+        const batchIds = batch.map(r => r.recordId);
+        const confirmedIds = (result) => {
+          if (!result || result.ok !== true) {
+            throw new Error(result?.error || 'Google Sheet did not confirm the save');
+          }
+          return Array.isArray(result.savedIds) ? result.savedIds : batchIds;
+        };
+
+        // 1) Hosted by the Apps Script web app: call the server function directly.
+        if (IS_APPS_SCRIPT_HOSTED) {
+          return confirmedIds(await callAppsScript('appendAuditRecords', payload));
+        }
+
+        // 2) Running behind the Node proxy server.
+        const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
+        if (archMode === 'PROXY' && window.location.protocol.startsWith('http')) {
+          const pRes = await fetch('/api/sheets/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUrl, ...payload })
+          });
+          if (pRes.ok) {
+            let body = null;
+            try { body = await pRes.json(); } catch (e) { /* proxy may not return JSON */ }
+            if (body && body.ok === false) throw new Error(body.error || 'Proxy sync rejected');
+            return body && body.ok === true ? confirmedIds(body) : batchIds;
+          }
+        }
+
+        // 3) Direct browser -> Apps Script Web App POST (text/plain avoids CORS preflight).
+        //    The JSON reply must be readable and say ok:true; an unreadable (opaque) reply
+        //    is never treated as success.
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        let body;
+        try {
+          body = await res.json();
+        } catch (e) {
+          throw new Error('Unexpected reply from Google Sheet Web App (check deployment access is "Anyone")');
+        }
+        return confirmedIds(body);
+      },
+
+      scheduleRetry() {
+        if (syncRetryTimer) return;
+        syncRetryTimer = setTimeout(() => {
+          syncRetryTimer = null;
+          this.flushQueue();
+        }, 60 * 1000);
+      },
+
       async flushQueue() {
         const targetUrl = this.getEffectiveUrl();
         if (isCloudSyncFlushing || !targetUrl || !state.googleSheetAutoSync) return;
@@ -1325,71 +1412,36 @@
         }
 
         isCloudSyncFlushing = true;
+        // Records queued by older versions have no recordId; give them one before sending.
+        let assignedIds = false;
+        state.pendingSyncQueue.forEach(r => {
+          if (!r.recordId) { r.recordId = newRecordId(); assignedIds = true; }
+        });
+        if (assignedIds) saveState();
+
         const batch = [...state.pendingSyncQueue];
         this.updateStatusUi(`Syncing ${batch.length} count(s) to Google Sheet...`, 'syncing');
 
-        const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
-        const proxySyncEndpoint = '/api/sheets/sync';
-
         try {
-          // If running with the Node proxy server, route through /api/sheets/sync first (zero CORS issues)
-          if (archMode === 'PROXY' && window.location.protocol.startsWith('http')) {
-            const pRes = await fetch(proxySyncEndpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                targetUrl,
-                warehouseId: state.activeWarehouse,
-                records: batch
-              })
-            });
-            if (pRes.ok) {
-              state.pendingSyncQueue = state.pendingSyncQueue.slice(batch.length);
-              state.lastCloudSyncAt = new Date().toLocaleTimeString();
-              saveState();
-              this.updateStatusUi(`Synced ${batch.length} record(s) at ${state.lastCloudSyncAt}`, 'ok');
-              return;
-            }
-          }
-
-          // Direct browser -> Google Apps Script Web App POST (text/plain avoids CORS preflight)
-          const res = await fetch(targetUrl, {
-            method: 'POST',
-            redirect: 'follow',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              warehouseId: state.activeWarehouse,
-              records: batch
-            })
-          });
-          if (!res.ok && res.type !== 'opaque') throw new Error(`HTTP ${res.status}`);
-
-          state.pendingSyncQueue = state.pendingSyncQueue.slice(batch.length);
+          const savedIds = new Set(await this.sendBatch(targetUrl, batch));
+          state.pendingSyncQueue = state.pendingSyncQueue.filter(r => !savedIds.has(r.recordId));
           state.lastCloudSyncAt = new Date().toLocaleTimeString();
           saveState();
-          this.updateStatusUi(`Synced ${batch.length} record(s) at ${state.lastCloudSyncAt}`, 'ok');
-        } catch (err) {
-          // Fallback for sandboxed iframes (e.g. Google Sites) where Apps Script 302 redirect blocks CORS read
-          try {
-            await fetch(targetUrl, {
-              method: 'POST',
-              mode: 'no-cors',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({
-                warehouseId: state.activeWarehouse,
-                records: batch
-              })
-            });
-            state.pendingSyncQueue = state.pendingSyncQueue.slice(batch.length);
-            state.lastCloudSyncAt = new Date().toLocaleTimeString();
-            saveState();
-            this.updateStatusUi(`Sent ${batch.length} record(s) at ${state.lastCloudSyncAt}`, 'ok');
-          } catch (fallbackErr) {
-            this.updateStatusUi(`Offline/Retry queued (${state.pendingSyncQueue.length} pending): ${err.message}`, 'error');
+          const remaining = state.pendingSyncQueue.length;
+          if (remaining > 0 && batch.some(r => !savedIds.has(r.recordId))) {
+            this.updateStatusUi(`Synced ${savedIds.size} record(s); ${remaining} still queued`, 'error');
+            this.scheduleRetry();
+          } else {
+            this.updateStatusUi(`Synced ${savedIds.size} record(s) at ${state.lastCloudSyncAt}`, 'ok');
           }
+        } catch (err) {
+          this.updateStatusUi(`Not synced — ${state.pendingSyncQueue.length} kept in queue, retrying: ${err.message}`, 'error');
+          this.scheduleRetry();
         } finally {
           isCloudSyncFlushing = false;
         }
+        // Counts recorded while this batch was in flight.
+        if (state.pendingSyncQueue.some(r => !batch.includes(r))) this.flushQueue();
       }
     };
 
@@ -2513,7 +2565,6 @@
           if (document.getElementById('wms-remember-creds')?.checked) {
             localStorage.setItem(CREDS_STORAGE_KEY, JSON.stringify({
               username: user.trim(),
-              password: pass,
               baseUrl: document.getElementById('wms-base-url')?.value || ''
             }));
             document.getElementById('wms-clear-saved-creds-btn')?.classList.remove('hidden');
@@ -2582,27 +2633,53 @@
       });
 
       const runGoogleSheetTest = async (urlToTest) => {
-        if (!urlToTest) return;
+        if (!urlToTest && !IS_APPS_SCRIPT_HOSTED) return;
+        const fail = (msg) => {
+          GoogleSheetCloudSync.updateStatusUi(`Connection failed: ${msg}`, 'error');
+          showToast(`Google Sheet connection failed: ${msg}`, 'error');
+        };
+        const pass = (health) => {
+          state.lastCloudSyncAt = new Date().toLocaleTimeString();
+          saveState();
+          const sheetName = health?.spreadsheet ? ` → "${health.spreadsheet}"` : '';
+          GoogleSheetCloudSync.updateStatusUi(`Connected & Verified${sheetName} at ${state.lastCloudSyncAt}`, 'ok');
+          showToast('Google Sheet Web App connected! Every count syncs automatically.', 'success');
+        };
+
+        GoogleSheetCloudSync.updateStatusUi('Testing Google Sheet Web App connection...', 'syncing');
+
+        if (IS_APPS_SCRIPT_HOSTED) {
+          try {
+            const health = await callAppsScript('getSyncHealth');
+            return health?.ok ? pass(health) : fail(health?.error || 'Sheet not configured');
+          } catch (err) {
+            return fail(err.message);
+          }
+        }
+
         if (!urlToTest.includes('script.google.com/macros/')) {
           showToast('URL should look like https://script.google.com/macros/s/.../exec', 'warn');
+          GoogleSheetCloudSync.updateStatusUi();
           return;
         }
-        GoogleSheetCloudSync.updateStatusUi('Testing Google Sheet Web App connection...', 'syncing');
         try {
-          const pingRes = await fetch(urlToTest, { method: 'GET', redirect: 'follow' });
+          const healthUrl = `${urlToTest}${urlToTest.includes('?') ? '&' : '?'}health=1`;
+          const pingRes = await fetch(healthUrl, { method: 'GET', redirect: 'follow' });
           const text = await pingRes.text();
           if (text.includes('Script function not found: doGet')) {
             GoogleSheetCloudSync.updateStatusUi('Error: Redeploy Apps Script with "New version"!', 'error');
             showToast('Apps Script still on old version! In Apps Script: Deploy -> Manage deployments -> Edit -> New version.', 'error');
             return;
           }
-          state.lastCloudSyncAt = new Date().toLocaleTimeString();
-          saveState();
-          GoogleSheetCloudSync.updateStatusUi(`Connected & Verified at ${state.lastCloudSyncAt}`, 'ok');
-          showToast('Google Sheet Web App connected! Every count syncs automatically.', 'success');
+          let health;
+          try {
+            health = JSON.parse(text);
+          } catch (e) {
+            return fail('reply was not the sync health check (check the URL and that deployment access is "Anyone")');
+          }
+          return health?.ok ? pass(health) : fail(health?.error || 'Sheet not configured');
         } catch (err) {
-          GoogleSheetCloudSync.updateStatusUi('Built-in sync active (iframe CORS mode)', 'ok');
-          showToast('Google Sheet sync ready! Record a count to verify row insertion.', 'success');
+          return fail(`could not reach the Web App (${err.message})`);
         }
       };
 
