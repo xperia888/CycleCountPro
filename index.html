@@ -6,7 +6,7 @@
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.3';
+    window.CCP_BUILD = '2026-11-22.4';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -20,8 +20,20 @@
         box.textContent += (box.textContent ? '\n' : '') + 'App error (build ' + window.CCP_BUILD + '): ' + msg;
       } catch (e) { /* ignore */ }
     };
+    // Best-effort: show the source text of the failing line so it can be located.
+    window.__ccpLineText = function (lineno) {
+      try {
+        var out = [];
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {
+          var lines = (scripts[i].textContent || '').split('\n');
+          if (!scripts[i].src && lines.length >= lineno) out.push('script#' + i + ': ' + lines[lineno - 1].trim().slice(0, 160));
+        }
+        return out.length ? '\n' + out.join('\n') : '';
+      } catch (e) { return ''; }
+    };
     window.addEventListener('error', function (e) {
-      window.__ccpShowError((e.message || 'Script error') + (e.lineno ? ' @ line ' + e.lineno + ':' + e.colno : ''));
+      window.__ccpShowError((e.message || 'Script error') + (e.lineno ? ' @ line ' + e.lineno + ':' + e.colno + window.__ccpLineText(e.lineno) : ''));
     });
     window.addEventListener('unhandledrejection', function (e) {
       window.__ccpShowError('Unhandled: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
@@ -546,7 +558,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.3</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.4</span></div>
 
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
@@ -800,7 +812,7 @@
             </div>
           </div>
           <div id="gsheet-override-box" class="hidden grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1">
-            <input id="gsheet-webapp-url" type="url" placeholder="Optional custom https://script.google.com/macros/s/.../exec"
+            <input id="gsheet-webapp-url" type="url" placeholder="Optional custom Apps Script Web App link (ends in /exec)"
               class="sm:col-span-9 px-3 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:border-purple-500 focus:outline-none" />
             <button id="gsheet-save-url-btn" type="button" class="sm:col-span-3 py-2 px-3 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm min-h-[36px]">
               Save Override
@@ -2701,7 +2713,7 @@
         }
 
         if (!urlToTest.includes('script.google.com/macros/')) {
-          showToast('URL should look like https://script.google.com/macros/s/.../exec', 'warn');
+          showToast('Use your Apps Script Web App link (the one ending in /exec).', 'warn');
           GoogleSheetCloudSync.updateStatusUi();
           return;
         }
