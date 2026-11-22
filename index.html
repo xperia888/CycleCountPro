@@ -838,7 +838,11 @@
     // Built-in default Google Apps Script Web App URL. A custom URL can only be set
     // from the in-app "Change URL" box (no ?gsheet= query param, so a shared link
     // cannot silently redirect count data to someone else's script).
-    const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec';
+    const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxtIvbwoQ4bz3ncR5dh96eX3-rVaknz70yLXit_xlCnphj1t4CAS266S2MFc4P-KcpR/exec';
+    // Previous built-in URLs. Devices that saved one of these are moved to the current default.
+    const LEGACY_GOOGLE_SHEET_URLS = [
+      'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec'
+    ];
 
     // True when this page is served by the Apps Script web app itself (HtmlService),
     // in which case sync goes through google.script.run instead of fetch.
@@ -1239,7 +1243,8 @@
           if (prefs.activeWarehouse) state.activeWarehouse = prefs.activeWarehouse;
           if (Array.isArray(prefs.warehouses) && prefs.warehouses.length) state.warehouses = prefs.warehouses;
           if (typeof prefs.soundEnabled === 'boolean') state.soundEnabled = prefs.soundEnabled;
-          if (typeof prefs.googleSheetUrl === 'string' && prefs.googleSheetUrl.trim()) {
+          if (typeof prefs.googleSheetUrl === 'string' && prefs.googleSheetUrl.trim()
+              && !LEGACY_GOOGLE_SHEET_URLS.includes(prefs.googleSheetUrl.trim())) {
             state.googleSheetUrl = prefs.googleSheetUrl.trim();
           } else {
             state.googleSheetUrl = DEFAULT_GOOGLE_SHEET_URL;
