@@ -6,7 +6,7 @@
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.5';
+    window.CCP_BUILD = '2026-11-22.6';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -559,7 +559,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.5</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.6</span></div>
 
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
@@ -1040,6 +1040,46 @@
       } catch (e) { /* Ignore */ }
     }
 
+    // Finds the warehouses a WMS account may access. Looks through the login
+    // response (and the claims inside a JWT token) for any field whose name
+    // contains "warehouse" (e.g. warehouses, warehouseList, userWarehouses,
+    // warehouse_id, warehouseCodes), whether it holds strings or objects.
+    function extractAccountWarehouses(raw, token) {
+      const found = [];
+      const ID_FIELDS = ['warehouse_id', 'warehouseId', 'warehouseCode', 'warehouse_code', 'warehouseNo',
+        'warehouse_no', 'whCode', 'wh_code', 'code', 'id', 'name', 'value'];
+      const pushValue = (v) => {
+        if (v == null) return;
+        if (typeof v === 'string' || typeof v === 'number') {
+          String(v).split(/[,;|]/).map(x => x.trim()).filter(Boolean).forEach(x => found.push(x));
+        } else if (Array.isArray(v)) {
+          v.forEach(pushValue);
+        } else if (typeof v === 'object') {
+          ID_FIELDS.forEach(f => { if (typeof v[f] === 'string' || typeof v[f] === 'number') found.push(String(v[f]).trim()); });
+        }
+      };
+      const walk = (obj, depth) => {
+        if (!obj || typeof obj !== 'object' || depth > 4) return;
+        if (Array.isArray(obj)) { obj.forEach(o => walk(o, depth + 1)); return; }
+        Object.keys(obj).forEach(k => {
+          if (/warehouse|^whs?$|^wh_?(list|ids?|codes?)$/i.test(k)) pushValue(obj[k]);
+          else walk(obj[k], depth + 1);
+        });
+      };
+      walk(raw, 0);
+      if (token && token.split('.').length === 3) {
+        try {
+          const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const json = decodeURIComponent(atob(b64 + '='.repeat((4 - b64.length % 4) % 4))
+            .split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''));
+          walk(JSON.parse(json), 0);
+        } catch (e) { /* not a readable JWT */ }
+      }
+      const listed = Array.from(new Set(found.filter(Boolean)));
+      const allowed = WAREHOUSES.filter(w => listed.some(x => normalizeWarehouseId(x) === w));
+      return { known: listed.length > 0, listed, allowed };
+    }
+
     function parseLoginPayload(raw, headers) {
       const topKeys = raw && typeof raw === 'object' ? Object.keys(raw) : [];
       const dataObj = (raw?.result && typeof raw.result === 'object') ? raw.result
@@ -1076,7 +1116,8 @@
         : [...WAREHOUSES];
       const defaultWarehouse = normalizeWarehouseId(dataObj?.warehouse_id || dataObj?.warehouseId || warehouses[0]) || DEFAULT_WAREHOUSE;
       const displayName = dataObj?.displayName || dataObj?.realName || dataObj?.username || '';
-      return { token, warehouses, defaultWarehouse, displayName, topKeys };
+      const account = extractAccountWarehouses(raw, token);
+      return { token, warehouses, defaultWarehouse, displayName, topKeys, account };
     }
 
     const WmsAuthService = {
@@ -1121,7 +1162,9 @@
             token: raw.token || 'SERVER_SIDE_HTTPONLY_SESSION',
             warehouses: raw.warehouses || [...WAREHOUSES],
             defaultWarehouse: normalizeWarehouseId(raw.warehouse_id) || DEFAULT_WAREHOUSE,
-            displayName: raw.displayName || cleanUser
+            displayName: raw.displayName || cleanUser,
+            topKeys: Object.keys(raw || {}),
+            account: extractAccountWarehouses(raw, raw.token)
           };
         };
 
@@ -1144,21 +1187,30 @@
           }
         }
 
+        // Restrict the warehouse list to what this WMS account may access.
+        const account = result.account || { known: false, listed: [], allowed: [] };
+        if (account.known && account.allowed.length === 0) {
+          throw new Error(`This WMS account has no access to ${WAREHOUSES.join(' or ')} `
+            + `(account warehouses: ${account.listed.join(', ')}).`);
+        }
+        const allowedWarehouses = account.known ? account.allowed : [...WAREHOUSES];
+
         authSession.token = result.token;
         authSession.username = cleanUser;
         authSession.displayName = result.displayName || cleanUser;
-        // Only the supported warehouses are offered, whatever the WMS account lists.
-        authSession.warehouses = [...WAREHOUSES];
+        authSession.warehouses = allowedWarehouses;
+        authSession.warehousesFromWms = account.known;
+        authSession.loginKeys = result.topKeys || [];
         authSession.archMode = archMode;
-        state.warehouses = authSession.warehouses;
-        if (result.defaultWarehouse && !state.activeWarehouse) {
-          state.activeWarehouse = result.defaultWarehouse;
+        state.warehouses = [...allowedWarehouses];
+        if (!state.warehouses.includes(state.activeWarehouse)) {
+          const preferred = normalizeWarehouseId(result.defaultWarehouse);
+          activateWarehouse(state.warehouses.includes(preferred) ? preferred : state.warehouses[0]);
         }
         authSession.selectedWarehouse = state.activeWarehouse;
 
         resetIdleTimer();
-        updateAuthUi();
-        renderHeaderAndKPIs();
+        renderAll();
         return result;
       },
 
@@ -1171,8 +1223,11 @@
         authSession.token = '';
         authSession.username = '';
         authSession.displayName = '';
+        authSession.warehouses = [...WAREHOUSES];
+        authSession.warehousesFromWms = false;
+        state.warehouses = [...WAREHOUSES];
         if (idleLogoutTimer) clearTimeout(idleLogoutTimer);
-        updateAuthUi();
+        renderAll();
       }
     };
 
@@ -1230,6 +1285,19 @@
     // -------------------------------------------------------------------------
     // SESSION, PER-WAREHOUSE ISOLATION & AUTOMATIC GOOGLE SHEET CLOUD SYNC
     // -------------------------------------------------------------------------
+    // Saves the current warehouse's data, then loads the target warehouse's own data.
+    function activateWarehouse(target) {
+      if (!target || target === state.activeWarehouse) return false;
+      saveState();
+      state.activeWarehouse = target;
+      authSession.selectedWarehouse = target;
+      loadWarehouseBucket(target);
+      saveState();
+      document.getElementById('comparison-active-panel')?.classList.add('hidden');
+      document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+      return true;
+    }
+
     function sampleRowsForActiveWarehouse() {
       return SAMPLE_STOCK_BY_INVENTORY.map(r => ({ ...r, 'Warehouse ID': state.activeWarehouse }));
     }
@@ -1883,7 +1951,7 @@
     function renderHeaderAndKPIs() {
       const whSel = document.getElementById('header-wh-select');
       const modalWhSel = document.getElementById('wms-login-wh-select');
-      const allWhs = Array.from(new Set([...state.warehouses, state.activeWarehouse].filter(Boolean)));
+      const allWhs = state.warehouses.length ? state.warehouses : [state.activeWarehouse];
       [whSel, modalWhSel].forEach(sel => {
         if (!sel) return;
         sel.innerHTML = allWhs.map(w => `<option value="${escapeHtml(w)}" ${w === state.activeWarehouse ? 'selected' : ''}>${escapeHtml(w)}</option>`).join('');
@@ -2297,14 +2365,12 @@
       // Warehouse switching: save the current warehouse, then load the other one's own data.
       const switchWarehouse = (whId) => {
         const target = normalizeWarehouseId(whId);
-        if (!target || target === state.activeWarehouse) { renderAll(); return; }
-        saveState();
-        state.activeWarehouse = target;
-        authSession.selectedWarehouse = target;
-        loadWarehouseBucket(target);
-        saveState();
-        document.getElementById('comparison-active-panel')?.classList.add('hidden');
-        document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+        if (!target || !state.warehouses.includes(target)) {
+          showToast(`${whId} is not available for this account.`, 'warn');
+          renderAll();
+          return;
+        }
+        if (!activateWarehouse(target)) { renderAll(); return; }
         updateAuthUi();
         renderAll();
         GoogleSheetCloudSync.flushQueue();
@@ -2690,7 +2756,11 @@
           }
           if (fb) {
             fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300';
-            fb.textContent = `Signed in as ${res.displayName || user} (${authSession.archMode} mode).`;
+            fb.textContent = `Signed in as ${res.displayName || user} (${authSession.archMode} mode). `
+              + (authSession.warehousesFromWms
+                ? `Warehouses for this account: ${authSession.warehouses.join(', ')}.`
+                : `WMS login did not include a warehouse list, so all warehouses are shown `
+                  + `(response fields: ${(authSession.loginKeys || []).join(', ') || 'none'}).`);
           }
           showToast('WMS Sign-In successful!', 'success');
         } catch (err) {
