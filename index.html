@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.12';
+    window.CCP_BUILD = '2026-11-23.1';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -579,7 +579,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.12</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-23.1</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -1438,7 +1438,7 @@
           activeTaskByWarehouse: state.activeTaskByWarehouse
         }));
         localStorage.setItem(getWarehouseStorageKey(state.activeWarehouse), JSON.stringify({
-          items: state.items,
+          items: state.items.filter(i => !i.draftBlind),
           sourceLabel: state.sourceLabel,
           pendingSyncQueue: state.pendingSyncQueue,
           lastCloudSyncAt: state.lastCloudSyncAt
@@ -2364,7 +2364,7 @@
         'Total Allocation': r.sysAlloc,
         'Total Remaining': r.sysRem,
         'Total Counted': r.physCounted,
-        'Net Diff (vs Sys)': r.varianceVsSys,
+        'Net Diff (vs Sys, counted pallets)': r.varianceVsSys ?? '',
         'Observed Bays': r.locationsStr
       }));
 
@@ -2499,6 +2499,10 @@
       const wrap = document.getElementById('quick-lp-chips');
       if (!wrap) return;
       const pending = state.items.filter(i => !i.counted).slice(0, 6);
+      if (!state.items.length) {
+        wrap.innerHTML = `<span class="text-[11px] text-slate-400 font-semibold">No pallets loaded. Pull from WMS (API) or Import.</span>`;
+        return;
+      }
       if (!pending.length) {
         wrap.innerHTML = `<span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">All pallets audited!</span>`;
         return;
@@ -2511,7 +2515,24 @@
       `).join('');
     }
 
+    // A scanned LP that is not in the list is opened as an unsaved draft; it only joins
+    // the list once its count is saved. Drop any draft the user walked away from.
+    function discardBlindDrafts(exceptId) {
+      const before = state.items.length;
+      state.items = state.items.filter(i => !(i.draftBlind && !i.counted && i.id !== exceptId));
+      return state.items.length !== before;
+    }
+
+    function closeCountCard() {
+      state.activeItemId = null;
+      const dropped = discardBlindDrafts();
+      document.getElementById('comparison-active-panel')?.classList.add('hidden');
+      document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+      if (dropped) renderAll(); else renderLedgerTable();
+    }
+
     function selectItemForCount(itemId) {
+      if (discardBlindDrafts(itemId)) renderAll();
       const item = state.items.find(i => i.id === itemId);
       if (!item) return;
       state.activeItemId = item.id;
@@ -2711,12 +2732,14 @@
           sysAlloc: 0,
           sysRem: 0,
           physCounted: 0,
+          countedSys: 0,
           locations: new Set()
         };
         row.palletsTotal += 1;
         if (item.counted) {
           row.palletsCounted += 1;
           row.physCounted += item.actualQty ?? 0;
+          row.countedSys += item.sysActualQty || 0;
         }
         if (item.isNoLp || String(item.lpn).startsWith('NO-LP')) row.noLpCount += 1;
         row.sysActual += item.sysActualQty || 0;
@@ -2728,7 +2751,8 @@
 
       return Array.from(map.values()).map(r => ({
         ...r,
-        varianceVsSys: r.physCounted - r.sysActual,
+        // Compare counted pallets with their own system qty; uncounted pallets are not "missing".
+        varianceVsSys: r.palletsCounted ? r.physCounted - r.countedSys : null,
         locationsStr: Array.from(r.locations).join(', ')
       }));
     }
@@ -2773,16 +2797,16 @@
             <td class="py-2 px-2 text-right font-mono">${r.sysAlloc}</td>
             <td class="py-2 px-2 text-right font-mono">${r.sysRem}</td>
             <td class="py-2 px-2 text-right font-mono font-bold">${r.physCounted}</td>
-            <td class="py-2 px-2 text-right font-mono font-bold ${r.varianceVsSys === 0 ? 'text-emerald-600' : 'text-rose-600'}">${r.varianceVsSys > 0 ? '+' : ''}${r.varianceVsSys}</td>
+            <td class="py-2 px-2 text-right font-mono font-bold ${r.varianceVsSys === null ? 'text-slate-400' : r.varianceVsSys === 0 ? 'text-emerald-600' : 'text-rose-600'}">${r.varianceVsSys === null ? '--' : `${r.varianceVsSys > 0 ? '+' : ''}${r.varianceVsSys}`}</td>
             <td class="py-2 px-2.5 font-mono text-[11px]">${escapeHtml(r.locationsStr)}</td>
           </tr>
         `).join('');
         const totSys = rows.reduce((s, r) => s + r.sysActual, 0);
         const totCnt = rows.reduce((s, r) => s + r.physCounted, 0);
-        const totDiff = totCnt - totSys;
+        const totDiff = rows.reduce((s, r) => s + (r.varianceVsSys || 0), 0);
         tfoot.innerHTML = `
           <tr>
-            <td colspan="3" class="py-2 px-2.5">Grand Total (${rows.length} SKUs)</td>
+            <td colspan="3" class="py-2 px-2.5">Grand Total (${rows.length} SKUs) · Diff = counted pallets only</td>
             <td class="py-2 px-2 text-right font-mono">${totSys}</td>
             <td class="py-2 px-2 text-right font-mono">${rows.reduce((s, r) => s + r.sysAlloc, 0)}</td>
             <td class="py-2 px-2 text-right font-mono">${rows.reduce((s, r) => s + r.sysRem, 0)}</td>
@@ -2815,16 +2839,20 @@
               <td class="py-2 px-2 text-right font-mono">${i.sysActualQty}</td>
               <td class="py-2 px-2 text-right font-mono font-bold">${i.counted ? i.actualQty : '--'}</td>
               <td class="py-2 px-2 text-right font-mono font-bold ${diff === null ? '' : diff === 0 ? 'text-emerald-600' : 'text-rose-600'}">${diff === null ? '--' : `${diff > 0 ? '+' : ''}${diff}`}</td>
-              <td class="py-2 px-2.5">${i.counted ? (diff === 0 ? 'Matched' : 'Variance') : 'Pending'}${i.reasonCode ? ` (${escapeHtml(i.reasonCode)})` : ''}</td>
+              <td class="py-2 px-2.5">${!i.counted ? 'Pending'
+                : diff !== 0 ? 'Variance'
+                : (i.actualLocation && i.sysLocation && i.actualLocation !== i.sysLocation) ? 'Location Variance'
+                : 'Matched'}${i.reasonCode ? ` (${escapeHtml(i.reasonCode)})` : ''}</td>
             </tr>
           `;
         }).join('');
         const totSys = state.items.reduce((s, i) => s + (i.sysActualQty || 0), 0);
-        const totCnt = state.items.filter(i => i.counted).reduce((s, i) => s + (i.actualQty ?? 0), 0);
-        const totDiff = totCnt - totSys;
+        const counted = state.items.filter(i => i.counted);
+        const totCnt = counted.reduce((s, i) => s + (i.actualQty ?? 0), 0);
+        const totDiff = counted.reduce((s, i) => s + ((i.actualQty ?? 0) - (i.sysActualQty || 0)), 0);
         tfoot.innerHTML = `
           <tr>
-            <td colspan="4" class="py-2 px-2.5">Grand Total (${state.items.length} Pallets)</td>
+            <td colspan="4" class="py-2 px-2.5">Grand Total (${state.items.length} Pallets) · Diff = counted pallets only</td>
             <td class="py-2 px-2 text-right font-mono">${totSys}</td>
             <td class="py-2 px-2 text-right font-mono">${totCnt}</td>
             <td class="py-2 px-2 text-right font-mono ${totDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}">${totDiff > 0 ? '+' : ''}${totDiff}</td>
@@ -2982,13 +3010,14 @@
             isNoLp: false,
             reasonCode: '',
             notes: 'Scanned blind LP not in system list',
-            countedAt: ''
+            countedAt: '',
+            draftBlind: true
           };
+          discardBlindDrafts();
           state.items.unshift(match);
-          saveState();
           renderAll();
           playScannerBeep(false);
-          showToast(`LP ${rawLp} not in system list — opened as blind add.`, 'warn');
+          showToast(`LP ${rawLp} not in system list. Save a count to add it, or Cancel to discard.`, 'warn');
         } else {
           playScannerBeep(true);
         }
@@ -3072,8 +3101,10 @@
         item.notes = notes;
         item.counted = true;
         item.countedAt = new Date().toISOString();
+        delete item.draftBlind;
 
         const hasQtyDiff = physQty !== (item.sysActualQty || 0);
+        const relocated = Boolean(item.sysLocation) && physLoc && physLoc !== item.sysLocation;
         const scannerCard = document.getElementById('scanner-console-card');
         if (hasQtyDiff) {
           playScannerBeep(false);
@@ -3086,11 +3117,17 @@
           scannerCard?.classList.remove('scan-flash-ok', 'scan-flash-warn');
           void scannerCard?.offsetWidth;
           scannerCard?.classList.add('scan-flash-ok');
-          showToast(`Saved ${item.lpn}: ${physQty} units matched.`, 'success');
+          showToast(relocated
+            ? `Saved ${item.lpn}: ${physQty} units, location changed ${item.sysLocation} → ${physLoc}.`
+            : `Saved ${item.lpn}: ${physQty} units matched.`, relocated ? 'warn' : 'success');
         }
 
         saveState();
         GoogleSheetCloudSync.enqueueRecord(item);
+        // Close the card so the same count can't be saved twice by accident.
+        state.activeItemId = null;
+        document.getElementById('comparison-active-panel')?.classList.add('hidden');
+        document.getElementById('comparison-empty-state')?.classList.remove('hidden');
         renderAll();
 
         // Automatically jump cursor back to Scan Pallet LP field
@@ -3102,10 +3139,7 @@
       });
 
       document.getElementById('cancel-comp-btn')?.addEventListener('click', () => {
-        state.activeItemId = null;
-        document.getElementById('comparison-active-panel')?.classList.add('hidden');
-        document.getElementById('comparison-empty-state')?.classList.remove('hidden');
-        renderLedgerTable();
+        closeCountCard();
         document.getElementById('lp-scan-input')?.focus();
       });
 
@@ -3163,8 +3197,13 @@
           targetItem.countedAt = new Date().toISOString();
           playScannerBeep(qty === (targetItem.sysActualQty || 0));
         } else {
-          const seq = state.items.filter(i => String(i.lpn).startsWith('NO-LP')).length + 1;
-          const noLpCode = `NO-LP-${String(seq).padStart(3, '0')}`;
+          // Unique across devices (several counters may add No-LP pallets at once).
+          const d = new Date();
+          const ymd = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+          let noLpCode;
+          do {
+            noLpCode = `NO-LP-${ymd}-${Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0')}`;
+          } while (state.items.some(i => i.lpn === noLpCode));
           const refItem = state.items.find(i => i.itemId === rawSku || i.barcode === rawSku);
           targetItem = {
             id: `nolp_${Date.now()}`,
@@ -3601,7 +3640,7 @@
               SysAlloc: r.sysAlloc,
               SysRem: r.sysRem,
               Counted: r.physCounted,
-              NetDiffVsSys: r.varianceVsSys
+              NetDiffVsSys: r.varianceVsSys ?? ''
             }))
           : state.items.map(i => ({
               Warehouse: i.warehouseId || state.activeWarehouse,
