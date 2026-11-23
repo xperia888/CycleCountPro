@@ -4,6 +4,41 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
+  <script>
+    // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
+    window.CCP_BUILD = '2026-11-22.5';
+    window.__ccpShowError = function (msg) {
+      try {
+        var box = document.getElementById('ccp-error-banner');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'ccp-error-banner';
+          box.setAttribute('role', 'alert');
+          box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;padding:10px 12px;border-radius:10px;background:#b91c1c;color:#fff;font:12px/1.4 monospace;white-space:pre-wrap;max-height:40vh;overflow:auto';
+          (document.body || document.documentElement).appendChild(box);
+        }
+        box.textContent += (box.textContent ? '\n' : '') + 'App error (build ' + window.CCP_BUILD + '): ' + msg;
+      } catch (e) { /* ignore */ }
+    };
+    // Best-effort: show the source text of the failing line so it can be located.
+    window.__ccpLineText = function (lineno) {
+      try {
+        var out = [];
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {
+          var lines = (scripts[i].textContent || '').split('\n');
+          if (!scripts[i].src && lines.length >= lineno) out.push('script#' + i + ': ' + lines[lineno - 1].trim().slice(0, 160));
+        }
+        return out.length ? '\n' + out.join('\n') : '';
+      } catch (e) { return ''; }
+    };
+    window.addEventListener('error', function (e) {
+      window.__ccpShowError((e.message || 'Script error') + (e.lineno ? ' @ line ' + e.lineno + ':' + e.colno + window.__ccpLineText(e.lineno) : ''));
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      window.__ccpShowError('Unhandled: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+    });
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS for native stock_by_inventory .xls / .xlsx / .csv parsing & export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -11,6 +46,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
   <script>
+    window.tailwind = window.tailwind || {};
     tailwind.config = {
       darkMode: 'class',
       theme: {
@@ -106,6 +142,7 @@
             <h1 class="font-extrabold text-xs sm:text-base tracking-tight text-white">CycleCount<span class="text-indigo-400">Pro</span> <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 align-middle">v2</span></h1>
             <select id="header-wh-select" title="Active Warehouse ID (warehouseId)" class="bg-slate-800 text-indigo-300 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-700 focus:outline-none max-w-[115px] sm:max-w-none">
               <option value="ONUS-ONT">ONUS-ONT</option>
+              <option value="ONUS-Chino">ONUS-Chino</option>
             </select>
             <span id="header-cloud-sync-badge" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
               <span id="header-cloud-sync-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -522,6 +559,7 @@
       </div>
     </div>
   </main>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.5</span></div>
 
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
@@ -637,11 +675,10 @@
               <span id="wms-login-wh-hint" class="text-[11px] font-mono text-slate-400">Active: ONUS-ONT</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
-              <select id="wms-login-wh-select" class="sm:col-span-5 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
+              <select id="wms-login-wh-select" class="sm:col-span-10 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
                 <option value="ONUS-ONT">ONUS-ONT</option>
+                <option value="ONUS-Chino">ONUS-Chino</option>
               </select>
-              <input id="wms-login-wh-custom" type="text" placeholder="Or type Warehouse ID (e.g. WS-TEST)"
-                class="sm:col-span-5 px-2.5 py-1.5 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
               <button id="wms-apply-wh-btn" type="button" class="sm:col-span-2 py-1.5 px-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
                 Apply
               </button>
@@ -775,7 +812,7 @@
             </div>
           </div>
           <div id="gsheet-override-box" class="hidden grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1">
-            <input id="gsheet-webapp-url" type="url" placeholder="Optional custom https://script.google.com/macros/s/.../exec"
+            <input id="gsheet-webapp-url" type="url" placeholder="Optional custom Apps Script Web App link (ends in /exec)"
               class="sm:col-span-9 px-3 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:border-purple-500 focus:outline-none" />
             <button id="gsheet-save-url-btn" type="button" class="sm:col-span-3 py-2 px-3 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm min-h-[36px]">
               Save Override
@@ -835,10 +872,24 @@
     const GLOBAL_PREFS_KEY = 'wms_cyclecount_global_prefs_v2';
     const CREDS_STORAGE_KEY = 'wms_cyclecount_saved_creds_v1';
     const IDLE_LOGOUT_MS = 60 * 60 * 1000;
+
+    // Supported warehouses. Each one keeps its own counts, offline queue and Sheet tab.
+    const WAREHOUSES = ['ONUS-ONT', 'ONUS-Chino'];
+    const DEFAULT_WAREHOUSE = WAREHOUSES[0];
+
+    // Maps any spelling (e.g. "onus-chino") to the canonical ID, or '' if not supported.
+    function normalizeWarehouseId(whId) {
+      const key = String(whId || '').trim().toUpperCase();
+      return WAREHOUSES.find(w => w.toUpperCase() === key) || '';
+    }
     // Built-in default Google Apps Script Web App URL. A custom URL can only be set
     // from the in-app "Change URL" box (no ?gsheet= query param, so a shared link
     // cannot silently redirect count data to someone else's script).
-    const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec';
+    const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxtIvbwoQ4bz3ncR5dh96eX3-rVaknz70yLXit_xlCnphj1t4CAS266S2MFc4P-KcpR/exec';
+    // Previous built-in URLs. Devices that saved one of these are moved to the current default.
+    const LEGACY_GOOGLE_SHEET_URLS = [
+      'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec'
+    ];
 
     // True when this page is served by the Apps Script web app itself (HtmlService),
     // in which case sync goes through google.script.run instead of fetch.
@@ -868,16 +919,16 @@
       token: '',
       username: '',
       displayName: '',
-      warehouses: ['ONUS-ONT', 'WS-TEST'],
-      selectedWarehouse: 'ONUS-ONT',
+      warehouses: [...WAREHOUSES],
+      selectedWarehouse: DEFAULT_WAREHOUSE,
       archMode: 'DIRECT'
     };
 
     const state = {
       items: [],
       activeItemId: null,
-      activeWarehouse: 'ONUS-ONT',
-      warehouses: ['ONUS-ONT', 'WS-TEST'],
+      activeWarehouse: DEFAULT_WAREHOUSE,
+      warehouses: [...WAREHOUSES],
       sourceLabel: 'stock_by_inventory Sample',
       tableFilter: 'ALL',
       reportViewMode: 'PALLET',
@@ -1022,8 +1073,8 @@
       const whListRaw = dataObj?.warehouses || dataObj?.warehouseList || raw?.warehouses || [];
       const warehouses = Array.isArray(whListRaw) && whListRaw.length
         ? whListRaw.map(w => typeof w === 'string' ? w : (w.warehouse_id || w.warehouseId || w.code || w.id)).filter(Boolean)
-        : ['ONUS-ONT', 'WS-TEST'];
-      const defaultWarehouse = dataObj?.warehouse_id || dataObj?.warehouseId || warehouses[0] || 'ONUS-ONT';
+        : [...WAREHOUSES];
+      const defaultWarehouse = normalizeWarehouseId(dataObj?.warehouse_id || dataObj?.warehouseId || warehouses[0]) || DEFAULT_WAREHOUSE;
       const displayName = dataObj?.displayName || dataObj?.realName || dataObj?.username || '';
       return { token, warehouses, defaultWarehouse, displayName, topKeys };
     }
@@ -1068,8 +1119,8 @@
           }
           return {
             token: raw.token || 'SERVER_SIDE_HTTPONLY_SESSION',
-            warehouses: raw.warehouses || ['ONUS-ONT', 'WS-TEST'],
-            defaultWarehouse: raw.warehouse_id || 'ONUS-ONT',
+            warehouses: raw.warehouses || [...WAREHOUSES],
+            defaultWarehouse: normalizeWarehouseId(raw.warehouse_id) || DEFAULT_WAREHOUSE,
             displayName: raw.displayName || cleanUser
           };
         };
@@ -1096,7 +1147,8 @@
         authSession.token = result.token;
         authSession.username = cleanUser;
         authSession.displayName = result.displayName || cleanUser;
-        authSession.warehouses = Array.from(new Set([...state.warehouses, ...result.warehouses]));
+        // Only the supported warehouses are offered, whatever the WMS account lists.
+        authSession.warehouses = [...WAREHOUSES];
         authSession.archMode = archMode;
         state.warehouses = authSession.warehouses;
         if (result.defaultWarehouse && !state.activeWarehouse) {
@@ -1178,8 +1230,12 @@
     // -------------------------------------------------------------------------
     // SESSION, PER-WAREHOUSE ISOLATION & AUTOMATIC GOOGLE SHEET CLOUD SYNC
     // -------------------------------------------------------------------------
+    function sampleRowsForActiveWarehouse() {
+      return SAMPLE_STOCK_BY_INVENTORY.map(r => ({ ...r, 'Warehouse ID': state.activeWarehouse }));
+    }
+
     function getWarehouseStorageKey(whId) {
-      const cleanWh = String(whId || state.activeWarehouse || 'ONUS-ONT').trim().replace(/[^\w-]/g, '_');
+      const cleanWh = String(whId || state.activeWarehouse || DEFAULT_WAREHOUSE).trim().replace(/[^\w-]/g, '_');
       return `${STORAGE_KEY_PREFIX}${cleanWh}_v2`;
     }
 
@@ -1236,10 +1292,12 @@
         const prefsRaw = localStorage.getItem(GLOBAL_PREFS_KEY);
         if (prefsRaw) {
           const prefs = JSON.parse(prefsRaw);
-          if (prefs.activeWarehouse) state.activeWarehouse = prefs.activeWarehouse;
-          if (Array.isArray(prefs.warehouses) && prefs.warehouses.length) state.warehouses = prefs.warehouses;
+          // Saved warehouse lists from older versions (e.g. WS-TEST) are ignored.
+          state.activeWarehouse = normalizeWarehouseId(prefs.activeWarehouse) || DEFAULT_WAREHOUSE;
+          state.warehouses = [...WAREHOUSES];
           if (typeof prefs.soundEnabled === 'boolean') state.soundEnabled = prefs.soundEnabled;
-          if (typeof prefs.googleSheetUrl === 'string' && prefs.googleSheetUrl.trim()) {
+          if (typeof prefs.googleSheetUrl === 'string' && prefs.googleSheetUrl.trim()
+              && !LEGACY_GOOGLE_SHEET_URLS.includes(prefs.googleSheetUrl.trim())) {
             state.googleSheetUrl = prefs.googleSheetUrl.trim();
           } else {
             state.googleSheetUrl = DEFAULT_GOOGLE_SHEET_URL;
@@ -1320,7 +1378,7 @@
         const record = {
           recordId: newRecordId(),
           countedAt: item.countedAt || new Date().toISOString(),
-          warehouseId: item.warehouseId || state.activeWarehouse,
+          warehouseId: state.activeWarehouse,
           auditor: authSession.displayName || authSession.username || 'PDA-Operator',
           lpn: item.lpn,
           inboundNo: item.inboundNo || '',
@@ -1395,6 +1453,34 @@
         return confirmedIds(body);
       },
 
+      // Counts queued in a warehouse that is not currently open still get synced,
+      // straight from that warehouse's own saved data.
+      async flushOtherWarehouses(targetUrl) {
+        for (const whId of WAREHOUSES) {
+          if (whId === state.activeWarehouse) continue;
+          const key = getWarehouseStorageKey(whId);
+          let bucket;
+          try { bucket = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { bucket = null; }
+          const queue = Array.isArray(bucket?.pendingSyncQueue) ? bucket.pendingSyncQueue : [];
+          if (!queue.length) continue;
+          queue.forEach(r => { if (!r.recordId) r.recordId = newRecordId(); r.warehouseId = r.warehouseId || whId; });
+          try {
+            const saved = new Set(await this.sendBatch(targetUrl, queue));
+            // Re-read in case the user switched into this warehouse meanwhile.
+            if (whId === state.activeWarehouse) {
+              state.pendingSyncQueue = state.pendingSyncQueue.filter(r => !saved.has(r.recordId));
+              saveState();
+            } else {
+              const fresh = JSON.parse(localStorage.getItem(key) || 'null') || bucket;
+              fresh.pendingSyncQueue = (fresh.pendingSyncQueue || []).filter(r => !saved.has(r.recordId));
+              localStorage.setItem(key, JSON.stringify(fresh));
+            }
+          } catch (e) {
+            this.scheduleRetry();
+          }
+        }
+      },
+
       scheduleRetry() {
         if (syncRetryTimer) return;
         syncRetryTimer = setTimeout(() => {
@@ -1408,6 +1494,8 @@
         if (isCloudSyncFlushing || !targetUrl || !state.googleSheetAutoSync) return;
         if (state.pendingSyncQueue.length === 0) {
           this.updateStatusUi();
+          isCloudSyncFlushing = true;
+          try { await this.flushOtherWarehouses(targetUrl); } finally { isCloudSyncFlushing = false; }
           return;
         }
 
@@ -1437,9 +1525,9 @@
         } catch (err) {
           this.updateStatusUi(`Not synced — ${state.pendingSyncQueue.length} kept in queue, retrying: ${err.message}`, 'error');
           this.scheduleRetry();
-        } finally {
-          isCloudSyncFlushing = false;
         }
+        try { await this.flushOtherWarehouses(targetUrl); } catch (e) { /* retried later */ }
+        isCloudSyncFlushing = false;
         // Counts recorded while this batch was in flight.
         if (state.pendingSyncQueue.some(r => !batch.includes(r))) this.flushQueue();
       }
@@ -1450,9 +1538,8 @@
     // -------------------------------------------------------------------------
     const WmsInventoryApiService = {
       getSelectedWarehouseId() {
-        const customWh = (document.getElementById('wms-login-wh-custom')?.value || '').trim();
-        const selectWh = (document.getElementById('wms-login-wh-select')?.value || '').trim();
-        return customWh || selectWh || state.activeWarehouse || 'ONUS-ONT';
+        // Queries always run against the active warehouse so results land in its own data.
+        return state.activeWarehouse || DEFAULT_WAREHOUSE;
       },
 
       parseMultiTokens(rawInput, existingList = []) {
@@ -1675,6 +1762,19 @@
     }
 
     function applyImportedItems(newItems, sourceLabel, replace = true) {
+      // Keep warehouses separate: only rows for the active warehouse are imported.
+      const activeWh = state.activeWarehouse;
+      const otherWh = new Set();
+      newItems = newItems.filter(item => {
+        const wh = normalizeWarehouseId(item.warehouseId) || String(item.warehouseId || '').trim();
+        if (wh && wh !== activeWh) { otherWh.add(wh); return false; }
+        item.warehouseId = activeWh;
+        return true;
+      });
+      if (otherWh.size) {
+        showToast(`Skipped rows for ${[...otherWh].join(', ')}. Switch to that warehouse to import them.`, 'warn');
+      }
+      if (!newItems.length) return 0;
       if (replace) {
         state.items = newItems;
         state.activeItemId = null;
@@ -1689,6 +1789,7 @@
       state.sourceLabel = sourceLabel;
       saveState();
       renderAll();
+      return newItems.length;
     }
 
     function addLocationTokensFromInput() {
@@ -2167,32 +2268,50 @@
     // -------------------------------------------------------------------------
     // APPLICATION BOOTSTRAP & EVENT WIRING
     // -------------------------------------------------------------------------
-    document.addEventListener('DOMContentLoaded', () => {
+    // Apps Script (HtmlService) writes this page into its sandbox frame, and
+    // DOMContentLoaded has often already fired before this script runs. Start the
+    // app either way so buttons, sample data and sheet sync are always wired up.
+    function onAppReady(fn) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn, { once: true });
+      } else {
+        fn();
+      }
+    }
+
+    onAppReady(() => { try { ccpBootstrap(); } catch (err) { window.__ccpShowError((err && err.stack) || String(err)); } });
+
+    function ccpBootstrap() {
       const hadSaved = loadSavedState();
       if (!hadSaved) {
-        state.items = normalizeRowsToItems(SAMPLE_STOCK_BY_INVENTORY);
+        state.items = normalizeRowsToItems(sampleRowsForActiveWarehouse());
         state.sourceLabel = 'stock_by_inventory Sample';
       }
       loadSavedCredentials();
       renderAll();
 
-      if (state.pendingSyncQueue.length > 0) {
-        GoogleSheetCloudSync.flushQueue();
-      }
+      // Sync anything still queued, in this warehouse or the other one.
+      GoogleSheetCloudSync.flushQueue();
       window.addEventListener('online', () => GoogleSheetCloudSync.flushQueue());
 
-      // Header Warehouse Switcher (isolates storage per warehouse)
-      document.getElementById('header-wh-select')?.addEventListener('change', (e) => {
+      // Warehouse switching: save the current warehouse, then load the other one's own data.
+      const switchWarehouse = (whId) => {
+        const target = normalizeWarehouseId(whId);
+        if (!target || target === state.activeWarehouse) { renderAll(); return; }
         saveState();
-        state.activeWarehouse = e.target.value;
-        authSession.selectedWarehouse = state.activeWarehouse;
-        loadWarehouseBucket(state.activeWarehouse);
+        state.activeWarehouse = target;
+        authSession.selectedWarehouse = target;
+        loadWarehouseBucket(target);
         saveState();
         document.getElementById('comparison-active-panel')?.classList.add('hidden');
         document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+        updateAuthUi();
         renderAll();
-        showToast(`Switched active warehouse to ${state.activeWarehouse}`, 'info');
-      });
+        GoogleSheetCloudSync.flushQueue();
+        showToast(`Switched active warehouse to ${target}`, 'info');
+      };
+      document.getElementById('header-wh-select')?.addEventListener('change', (e) => switchWarehouse(e.target.value));
+      document.getElementById('wms-login-wh-select')?.addEventListener('change', (e) => switchWarehouse(e.target.value));
 
       // Top Toolbar Buttons
       document.getElementById('open-import-btn')?.addEventListener('click', () => openModal('import-modal'));
@@ -2605,18 +2724,7 @@
       });
 
       document.getElementById('wms-apply-wh-btn')?.addEventListener('click', () => {
-        const chosenWh = WmsInventoryApiService.getSelectedWarehouseId();
-        if (!chosenWh) return;
-        saveState();
-        state.activeWarehouse = chosenWh;
-        state.warehouses = Array.from(new Set([...state.warehouses, chosenWh]));
-        authSession.selectedWarehouse = chosenWh;
-        loadWarehouseBucket(chosenWh);
-        saveState();
-        document.getElementById('wms-login-wh-custom').value = '';
-        updateAuthUi();
-        renderAll();
-        showToast(`Active warehouse set to ${chosenWh}`, 'success');
+        switchWarehouse(document.getElementById('wms-login-wh-select')?.value);
       });
 
       document.getElementById('gsheet-auto-enabled')?.addEventListener('change', (e) => {
@@ -2658,7 +2766,7 @@
         }
 
         if (!urlToTest.includes('script.google.com/macros/')) {
-          showToast('URL should look like https://script.google.com/macros/s/.../exec', 'warn');
+          showToast('Use your Apps Script Web App link (the one ending in /exec).', 'warn');
           GoogleSheetCloudSync.updateStatusUi();
           return;
         }
@@ -2781,9 +2889,9 @@
 
           const syncMode = document.getElementById('wms-sync-mode')?.value || 'REPLACE';
           const whId = WmsInventoryApiService.getSelectedWarehouseId();
-          applyImportedItems(items, `WMS API (${whId})`, syncMode === 'REPLACE');
-          if (statusEl) statusEl.textContent = `Imported ${items.length} pallets`;
-          showToast(`Imported ${items.length} pallet records from WMS (${whId}).`, 'success');
+          const kept = applyImportedItems(items, `WMS API (${whId})`, syncMode === 'REPLACE');
+          if (statusEl) statusEl.textContent = `Imported ${kept} pallets`;
+          showToast(`Imported ${kept} pallet records from WMS (${whId}).`, kept ? 'success' : 'warn');
           closeModal('wms-modal');
         } catch (err) {
           if (err.name === 'AbortError') {
@@ -2826,9 +2934,10 @@
             showToast('No valid inventory rows found in uploaded file.', 'warn');
             return;
           }
-          applyImportedItems(items, file.name, true);
+          const kept = applyImportedItems(items, file.name, true);
+          if (!kept) return;
           closeModal('import-modal');
-          showToast(`Loaded ${items.length} rows from ${file.name}`, 'success');
+          showToast(`Loaded ${kept} rows for ${state.activeWarehouse} from ${file.name}`, 'success');
         } catch (err) {
           showToast(`Failed to parse file: ${err.message}`, 'error');
         } finally {
@@ -2843,7 +2952,7 @@
       });
 
       document.getElementById('restore-sample-btn')?.addEventListener('click', () => {
-        applyImportedItems(normalizeRowsToItems(SAMPLE_STOCK_BY_INVENTORY), 'stock_by_inventory Sample', true);
+        applyImportedItems(normalizeRowsToItems(sampleRowsForActiveWarehouse()), 'stock_by_inventory Sample', true);
         closeModal('import-modal');
         showToast('Restored built-in sample inventory.', 'info');
       });
@@ -2940,7 +3049,7 @@
       });
 
       document.getElementById('print-report-btn')?.addEventListener('click', () => window.print());
-    });
+    }
   </script>
 </body>
 </html>
