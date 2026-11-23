@@ -135,7 +135,7 @@
     <div class="small muted" style="width:100%">Updated <span id="updated">—</span> · <span id="status-line"></span></div>
   </header>
 
-  <main>
+  <main id="dash">
     <section class="kpis">
       <div class="kpi"><div class="label">Active tasks</div><div class="value" id="k-active">–</div></div>
       <div class="kpi"><div class="label">Pallets counted (active tasks)</div><div class="value" id="k-counted">–</div></div>
@@ -278,6 +278,7 @@
     function showGate(msg) {
       stopTimer();
       $('gate').classList.remove('hidden');
+      $('dash').classList.add('hidden');
       $('gate-msg').classList.toggle('hidden', !msg);
       $('gate-msg').textContent = msg || '';
       setTimeout(function () { $('gate-code').focus(); }, 50);
@@ -296,6 +297,7 @@
         if (remember) store(CODE_KEY, code);
         $('gate').classList.add('hidden');
         $('gate-code').value = '';
+        $('dash').classList.remove('hidden');
         render(res);
         startTimer();
       }).catch(function (err) {
@@ -376,7 +378,55 @@
       return html;
     }
 
+    // Auto-refresh redraws the task list; keep an open Reassign box (with what was typed)
+    // and a pending "Tap again" so a refresh never throws away the supervisor's input.
+    function captureTaskUi() {
+      var ui = { rows: {}, focus: null, armed: {} };
+      Array.prototype.forEach.call(document.querySelectorAll('#tasks [data-row]'), function (row) {
+        if (row.classList.contains('hidden')) return;
+        var input = row.querySelector('input');
+        var id = row.getAttribute('data-row');
+        ui.rows[id] = input ? input.value : '';
+        if (input && document.activeElement === input) ui.focus = { id: id, pos: input.selectionStart };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('#tasks button[data-armed="1"]'), function (b) {
+        ui.armed[b.getAttribute('data-id') + '|' + b.getAttribute('data-act')] = Number(b.dataset.until) || 0;
+      });
+      return ui;
+    }
+    function restoreTaskUi(ui) {
+      Object.keys(ui.rows).forEach(function (id) {
+        var row = document.querySelector('#tasks [data-row="' + CSS.escape(id) + '"]');
+        if (!row) return;
+        row.classList.remove('hidden');
+        var input = row.querySelector('input');
+        if (!input) return;
+        input.value = ui.rows[id];
+        if (ui.focus && ui.focus.id === id) { input.focus(); try { input.setSelectionRange(ui.focus.pos, ui.focus.pos); } catch (e) {} }
+      });
+      Object.keys(ui.armed).forEach(function (key) {
+        var left = ui.armed[key] - Date.now();
+        if (left <= 0) return;
+        var parts = key.split('|');
+        var btn = document.querySelector('#tasks button[data-id="' + CSS.escape(parts[0]) + '"][data-act="' + CSS.escape(parts[1]) + '"]');
+        if (btn) armButton(btn, left);
+      });
+    }
+    function armButton(btn, ms) {
+      btn.dataset.armed = '1';
+      btn.dataset.label = btn.dataset.label || btn.textContent;
+      btn.dataset.until = String(Date.now() + ms);
+      btn.textContent = 'Tap again';
+      setTimeout(function () { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = btn.dataset.label; } }, ms);
+    }
+
     function renderTasks(tasks) {
+      var ui = captureTaskUi();
+      renderTaskList(tasks);
+      restoreTaskUi(ui);
+    }
+
+    function renderTaskList(tasks) {
       $('tasks-count').textContent = '(' + tasks.length + ')';
       if (!tasks.length) { $('tasks').innerHTML = '<div class="empty">No tasks to show. Use “+ Assign task”, or counters can start their own.</div>'; return; }
       $('tasks').innerHTML = tasks.map(function (t) {
@@ -463,11 +513,12 @@
         if (!res || !res.ok) {
           if (res && res.authError) { store(CODE_KEY, null); mon.code = ''; showGate(res.error); return; }
           alertLine('Could not update task: ' + (res && res.error));
-          return;
+          return false;
         }
         refresh();
-      }).catch(function (err) { alertLine('Could not update task: ' + err.message); })
-        .then(function () { if (btn) btn.disabled = false; });
+        return true;
+      }).catch(function (err) { alertLine('Could not update task: ' + err.message); return false; })
+        .then(function (ok) { if (btn) btn.disabled = false; return ok === true; });
     }
     function alertLine(msg) { $('status-line').textContent = msg; }
 
@@ -483,17 +534,18 @@
       }
       if (act === 'save-assign') {
         var input = btn.parentNode.querySelector('input');
-        updateTask(id, { assignedTo: input ? input.value.trim() : '' }, btn);
+        updateTask(id, { assignedTo: input ? input.value.trim() : '' }, btn).then(function (ok) {
+          var r = btn.closest('[data-row]');
+          if (ok && r) r.classList.add('hidden');
+        });
         return;
       }
       // Status buttons need a second tap to confirm.
       if (!btn.dataset.armed) {
-        btn.dataset.armed = '1';
-        btn.dataset.label = btn.textContent;
-        btn.textContent = 'Tap again';
-        setTimeout(function () { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = btn.dataset.label; } }, 4000);
+        armButton(btn, 4000);
         return;
       }
+      btn.dataset.armed = '';
       updateTask(id, { status: act }, btn);
     }
 
@@ -549,7 +601,12 @@
       $('f-wh').addEventListener('change', function () { if (mon.data) render(mon.data); });
       $('f-closed').addEventListener('change', function () { if (mon.data) render(mon.data); });
       $('f-auto').addEventListener('change', function () { startTimer(); if (mon.data) render(mon.data); });
-      $('lock-btn').addEventListener('click', function () { store(CODE_KEY, null); mon.code = ''; mon.data = null; showGate(''); });
+      $('lock-btn').addEventListener('click', function () {
+        store(CODE_KEY, null); mon.code = ''; mon.data = null; stopTimer();
+        $('dash').classList.add('hidden');
+        $('updated').textContent = '—';
+        showGate('');
+      });
       $('tasks').addEventListener('click', onTaskClick);
       $('assign-btn').addEventListener('click', openAssign);
       $('assign-cancel').addEventListener('click', function () { $('assign').classList.add('hidden'); });
