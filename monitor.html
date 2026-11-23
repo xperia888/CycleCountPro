@@ -217,15 +217,39 @@
     function clock(iso) { return iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; }
     function signed(n) { n = Number(n || 0); return (n > 0 ? '+' : '') + n; }
 
+    // Sheet backend (Apps Script Web App). Used when this page is opened from a static
+    // host such as GitHub Pages; on the Apps Script link google.script.run is used.
+    var DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxtIvbwoQ4bz3ncR5dh96eX3-rVaknz70yLXit_xlCnphj1t4CAS266S2MFc4P-KcpR/exec';
+    function backendUrl() {
+      // Same site as the counter app: reuse its custom sync URL if one was set there.
+      try {
+        var prefs = JSON.parse(localStorage.getItem('wms_cyclecount_global_prefs_v2') || '{}');
+        if (prefs.googleSheetUrl && /\/exec$/.test(prefs.googleSheetUrl)) return prefs.googleSheetUrl;
+      } catch (e) { /* ignore */ }
+      return DEFAULT_BACKEND_URL;
+    }
+
     function server(fn, payload) {
-      return new Promise(function (resolve, reject) {
-        if (!(window.google && google.script && google.script.run)) {
-          reject(new Error('Open this page from the Apps Script link (…/exec?view=monitor).'));
-          return;
+      if (window.google && google.script && google.script.run) {
+        return new Promise(function (resolve, reject) {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
+            reject(e instanceof Error ? e : new Error(String((e && e.message) || e)));
+          })[fn](payload);
+        });
+      }
+      // text/plain keeps this a simple request (no CORS preflight), like the counter app's sync.
+      return fetch(backendUrl(), {
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: fn, payload: payload })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Backend HTTP ' + res.status);
+        return res.text();
+      }).then(function (text) {
+        try { return JSON.parse(text); } catch (e) {
+          throw new Error('Unexpected reply from the Apps Script backend. Check that the deployment is updated (New version) and access is "Anyone".');
         }
-        google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
-          reject(e instanceof Error ? e : new Error(String((e && e.message) || e)));
-        })[fn](payload);
       });
     }
 
