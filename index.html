@@ -962,6 +962,16 @@
     const WAREHOUSES = ['ONUS-ONT', 'ONUS-Chino'];
     const DEFAULT_WAREHOUSE = WAREHOUSES[0];
 
+    // Plain-language error for when the browser cannot reach the WMS at all
+    // (offline, VPN/firewall, server down). fetch() reports these as TypeError.
+    function wmsUnreachableError(url) {
+      let host = url;
+      try { host = new URL(url, window.location.href).host; } catch (e) { /* keep raw */ }
+      const err = new Error(`Can't reach the WMS server (${host}). Check this device's internet / VPN connection; the WMS may only be reachable from the company network.`);
+      err.network = true;
+      return err;
+    }
+
     // Maps any spelling (e.g. "onus-chino") to the canonical ID, or '' if not supported.
     function normalizeWarehouseId(whId) {
       const key = String(whId || '').trim().toUpperCase();
@@ -1265,9 +1275,16 @@
             // Auto-fallback to local Node proxy if browser blocks cross-origin/TLS to :18890
             // (Not available when hosted by Apps Script: there is no Node proxy behind it.)
             if (directErr instanceof TypeError && window.location.protocol.startsWith('http') && !IS_APPS_SCRIPT_HOSTED) {
-              result = await attemptProxy();
+              try {
+                result = await attemptProxy();
+              } catch (proxyErr) {
+                // No proxy on this host (e.g. GitHub Pages): report the real problem.
+                throw wmsUnreachableError(baseUrl);
+              }
               archMode = 'PROXY';
               if (archSelect) archSelect.value = 'PROXY';
+            } else if (directErr instanceof TypeError) {
+              throw wmsUnreachableError(baseUrl);
             } else {
               throw directErr;
             }
@@ -2089,7 +2106,9 @@
         try {
           return await this.postQueryOnce(payload, signal);
         } catch (err) {
-          if (err.name === 'AbortError' || !payload?.filterModel?.wh_no) throw err;
+          // Retry without the wh_no filter only when the WMS answered with an error;
+          // a network failure has nothing to do with the filter.
+          if (err.name === 'AbortError' || err.network || !err.httpStatus || !payload?.filterModel?.wh_no) throw err;
           // The WMS may not support filtering on wh_no: retry without it; rows are
           // still filtered by warehouse in the app before import.
           wmsWarehouseFilterUnsupported = true;
@@ -2109,16 +2128,25 @@
           headers.Authorization = `Bearer ${authSession.token}`;
         }
 
-        const res = await fetch(url, {
-          method: 'POST',
-          headers,
-          credentials: archMode === 'PROXY' ? 'same-origin' : 'omit',
-          body: JSON.stringify(payload),
-          signal
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.message || data?.msg || `WMS query failed (HTTP ${res.status})`);
+        let res;
+        try {
+          res = await fetch(url, {
+            method: 'POST',
+            headers,
+            credentials: archMode === 'PROXY' ? 'same-origin' : 'omit',
+            body: JSON.stringify(payload),
+            signal
+          });
+        } catch (err) {
+          if (err.name === 'AbortError') throw err;
+          throw wmsUnreachableError(url);
+        }
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* not JSON */ }
+        if (!res.ok || data === null) {
+          const err = new Error(data?.message || data?.msg || `WMS query failed (HTTP ${res.status}${data === null ? ', unexpected reply' : ''})`);
+          err.httpStatus = res.status;
+          throw err;
         }
         return data;
       },
