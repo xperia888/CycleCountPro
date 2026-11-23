@@ -38,6 +38,10 @@ var EXPECTED_HEADERS = [
 
 var OPEN_STATUSES = ['Open', 'In Progress'];
 
+// Bumped when the JSON API changes. Clients check it (GET ?health=1) before sending
+// actions, so an outdated deployment is reported instead of misreading requests.
+var API_VERSION = 2;
+
 // ---------------------------------------------------------------------------
 // Web app entry points
 // ---------------------------------------------------------------------------
@@ -77,10 +81,11 @@ function doPost(e) {
     if (payload.action === 'ping') {
       return jsonOutput_(getSyncHealth());
     }
-    if (payload.action && POST_ACTIONS[payload.action]) {
-      return jsonOutput_(POST_ACTIONS[payload.action](payload.payload || {}));
+    if (payload.action) {
+      if (POST_ACTIONS[payload.action]) return jsonOutput_(POST_ACTIONS[payload.action](payload.payload || {}));
+      return jsonOutput_({ ok: false, error: 'Unknown action: ' + payload.action });
     }
-    // Default (older clients): payload is an audit batch.
+    // No action (older clients): payload is an audit batch.
     return jsonOutput_(appendAuditRecords(payload));
   } catch (err) {
     return jsonOutput_({ ok: false, error: errorMessage_(err) });
@@ -95,11 +100,12 @@ function getSyncHealth() {
       ok: true,
       service: 'CycleCount Pro v2 Google Sheet Sync',
       status: 'READY',
+      apiVersion: API_VERSION,
       spreadsheet: ss.getName(),
       timestamp: new Date().toISOString()
     };
   } catch (err) {
-    return { ok: false, status: 'NOT_CONFIGURED', error: errorMessage_(err) };
+    return { ok: false, status: 'NOT_CONFIGURED', apiVersion: API_VERSION, error: errorMessage_(err) };
   }
 }
 
@@ -113,7 +119,7 @@ function appendAuditRecords(payload) {
   payload = payload || {};
   return withLock_(function() {
     var records = Array.isArray(payload.records) ? payload.records : [payload];
-    records = records.filter(function(r) { return r && typeof r === 'object'; });
+    records = records.filter(function(r) { return r && typeof r === 'object' && (r.lpn || r.recordId); });
     if (!records.length) {
       return { ok: true, saved: 0, skipped: 0, savedIds: [] };
     }
@@ -581,6 +587,42 @@ function normStatus_(s) {
 
 function normWh_(s) { return String(s || '').trim().toUpperCase(); }
 function normName_(s) { return String(s || '').trim().toLowerCase(); }
+
+// ---------------------------------------------------------------------------
+// One-off cleanup: run from the Apps Script editor (select cleanupBlankAuditRows, Run).
+// Removes rows with no Pallet LP and no Record ID from Master_Audit_Log and every
+// warehouse tab. Real counts always have a Pallet LP, so they are never touched.
+// (An older backend saved monitor/task requests as such blank rows.)
+// ---------------------------------------------------------------------------
+function cleanupBlankAuditRows() {
+  var ss = getSpreadsheet_();
+  var skip = [TASK_TAB, EXPECTED_TAB];
+  var report = [];
+  ss.getSheets().forEach(function(sheet) {
+    var name = sheet.getName();
+    if (skip.indexOf(name) !== -1 || sheet.getLastRow() < 2) return;
+    var header = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+    var lpCol = header.indexOf('Pallet LP');
+    var idCol = header.indexOf('Record ID');
+    if (lpCol === -1) return; // not an audit tab
+    var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, header.length).getValues();
+    var removed = 0;
+    for (var i = values.length - 1; i >= 0; i--) {
+      var noLp = String(values[i][lpCol] || '').trim() === '';
+      var noId = idCol === -1 || String(values[i][idCol] || '').trim() === '';
+      if (noLp && noId) { sheet.deleteRow(i + 2); removed++; }
+    }
+    if (removed) report.push(name + ': ' + removed);
+    if (name === 'UNASSIGNED' && sheet.getLastRow() < 2 && ss.getSheets().length > 1) {
+      ss.deleteSheet(sheet);
+      report.push('UNASSIGNED tab removed (empty)');
+    }
+  });
+  clearMonitorCache_();
+  var msg = report.length ? 'Removed blank rows: ' + report.join(', ') : 'No blank rows found.';
+  Logger.log(msg);
+  return msg;
+}
 
 // ---------------------------------------------------------------------------
 // General helpers

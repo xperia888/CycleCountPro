@@ -238,12 +238,12 @@
         });
       }
       // text/plain keeps this a simple request (no CORS preflight), like the counter app's sync.
-      return fetch(backendUrl(), {
+      return checkBackend().then(function () { return fetch(backendUrl(), {
         method: 'POST',
         redirect: 'follow',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: fn, payload: payload })
-      }).then(function (res) {
+      }); }).then(function (res) {
         if (!res.ok) throw new Error('Backend HTTP ' + res.status);
         return res.text();
       }).then(function (text) {
@@ -251,6 +251,27 @@
           throw new Error('Unexpected reply from the Apps Script backend. Check that the deployment is updated (New version) and access is "Anyone".');
         }
       });
+    }
+
+    // An older backend does not know the monitor actions and would save each request as a
+    // blank count row, so confirm its API version (GET ?health=1) before sending anything.
+    var MIN_API_VERSION = 2;
+    var backendChecked = null;
+    var OUTDATED_MSG = 'The Apps Script backend is an older version. In Apps Script, paste the latest Code.gs, '
+      + 'then Deploy, Manage deployments, Edit, New version.';
+    function checkBackend() {
+      if (backendChecked) return backendChecked;
+      var url = backendUrl();
+      backendChecked = fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + 'health=1', { redirect: 'follow' })
+        .then(function (res) { return res.text(); })
+        .then(function (text) {
+          var h;
+          try { h = JSON.parse(text); } catch (e) { throw new Error('Could not reach the Apps Script backend (check the deployment access is "Anyone").'); }
+          if (!(Number(h.apiVersion) >= MIN_API_VERSION)) throw new Error(OUTDATED_MSG);
+          return h;
+        });
+      backendChecked.catch(function () { backendChecked = null; }); // retry the check next time
+      return backendChecked;
     }
 
     // ---------------------------------------------------------------- access
@@ -270,6 +291,7 @@
           showGate(res && res.error ? res.error : 'Could not open the monitor.');
           return;
         }
+        if (!Array.isArray(res.tasks)) { showGate(OUTDATED_MSG); return; }
         mon.code = code;
         if (remember) store(CODE_KEY, code);
         $('gate').classList.add('hidden');
@@ -305,6 +327,10 @@
     function stopTimer() { if (mon.timer) clearInterval(mon.timer); mon.timer = null; }
 
     function render(data) {
+      if (!data || !Array.isArray(data.tasks) || !data.generatedAt) {
+        $('status-line').textContent = OUTDATED_MSG;
+        return;
+      }
       mon.data = data;
       $('updated').textContent = new Date(data.generatedAt).toLocaleTimeString();
       $('status-line').textContent = $('f-auto').checked ? 'auto-refresh every 30 s' : 'auto-refresh off';
@@ -494,6 +520,7 @@
           msg.className = 'msg err'; msg.textContent = (res && res.error) || 'Could not create task.';
           return;
         }
+        if (!res.task) { msg.className = 'msg err'; msg.textContent = OUTDATED_MSG; return; }
         msg.className = 'msg ok';
         msg.textContent = 'Task ' + res.task.taskId + ' created for ' + customerNo +
           (res.task.assignedTo ? ' and assigned to ' + res.task.assignedTo : ' (any counter can pick it)') + '.';
