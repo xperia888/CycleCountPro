@@ -130,9 +130,10 @@
       <label class="chk"><input id="f-auto" type="checkbox" checked /> Auto-refresh</label>
       <button id="refresh-btn" class="ghost" type="button">Refresh</button>
       <button id="assign-btn" class="primary" type="button">+ Assign task</button>
+      <button id="archive-btn" class="ghost" type="button" title="Move counts and closed tasks older than 90 days to the archive spreadsheet">Archive…</button>
       <button id="lock-btn" class="ghost" type="button" title="Forget the access code on this device">Lock</button>
     </div>
-    <div class="small muted" style="width:100%">Updated <span id="updated">—</span> · <span id="status-line"></span></div>
+    <div class="small muted" style="width:100%">Updated <span id="updated">—</span> · <span id="status-line"></span><span id="archive-line"></span></div>
   </header>
 
   <main id="dash">
@@ -361,6 +362,7 @@
       $('k-var').textContent = variances.length;
       $('k-dup').textContent = dups.length;
 
+      renderArchiveInfo(data.archive);
       renderTasks(tasks);
       renderCounters(counters);
       renderVariances(variances);
@@ -549,6 +551,42 @@
       updateTask(id, { status: act }, btn);
     }
 
+    // ---------------------------------------------------------------- archive
+    function renderArchiveInfo(a) {
+      if (!a || mon.archiving) return;
+      $('archive-line').textContent = ' · keeps ' + a.keepDays + ' days · last archive ' +
+        (a.lastRun ? new Date(a.lastRun).toLocaleDateString() + ' (' + a.lastTotal + ' rows)' : 'never');
+    }
+
+    function runArchive() {
+      if (!mon.code || mon.archiving) return;
+      var btn = $('archive-btn');
+      var line = $('archive-line');
+      var done = function (msg) { mon.archiving = false; btn.disabled = false; if (msg) line.textContent = ' · ' + msg; };
+      mon.archiving = true; btn.disabled = true;
+      line.textContent = ' · Checking what can be archived…';
+      server('monitorArchive', { code: mon.code, dryRun: true }).then(function (res) {
+        if (!res || !res.ok) {
+          if (res && res.authError) { done(); store(CODE_KEY, null); mon.code = ''; showGate(res.error); return; }
+          var err = res && res.error ? String(res.error) : 'unknown error';
+          done('Archive failed: ' + (/Unknown action/.test(err) ? OUTDATED_MSG : err));
+          return;
+        }
+        if (!res.total) { done('Nothing older than ' + res.keepDays + ' days to archive.'); return; }
+        var parts = Object.keys(res.moved).map(function (k) { return k + ': ' + res.moved[k]; });
+        var ok = window.confirm('Move ' + res.total + ' rows older than ' + res.keepDays + ' days (before ' +
+          new Date(res.cutoff).toLocaleDateString() + ') to the archive spreadsheet?\n\n' + parts.join('\n') +
+          '\n\nThe tabs are backed up first. Open tasks always stay.');
+        if (!ok) { done('Archive cancelled.'); return; }
+        line.textContent = ' · Archiving ' + res.total + ' rows… keep this page open.';
+        return server('monitorArchive', { code: mon.code }).then(function (r) {
+          if (!r || !r.ok) { done('Archive failed: ' + ((r && r.error) || 'unknown error') + ' (nothing was removed unless the archive was written)'); return; }
+          done('Archived ' + r.total + ' rows.');
+          refresh();
+        });
+      }).catch(function (err) { done('Archive failed: ' + err.message); });
+    }
+
     function openAssign() {
       $('assign-msg').classList.add('hidden');
       if ($('f-wh').value) $('as-wh').value = $('f-wh').value;
@@ -609,6 +647,7 @@
       });
       $('tasks').addEventListener('click', onTaskClick);
       $('assign-btn').addEventListener('click', openAssign);
+      $('archive-btn').addEventListener('click', runArchive);
       $('assign-cancel').addEventListener('click', function () { $('assign').classList.add('hidden'); });
       $('assign-form').addEventListener('submit', submitAssign);
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });

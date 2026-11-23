@@ -5,6 +5,8 @@
 //                     (Extensions -> Apps Script); otherwise not needed.
 //   * MONITOR_CODE    access code for the manager monitor page (?view=monitor).
 //                     Use a long code; changing it signs out every monitor screen.
+// Monthly archive (keeps the last 90 days in this Sheet): select setupMonthlyArchive
+// in the editor and press Run once, then approve the permissions it asks for.
 // HTML files in the project: "index" (counter app) and "monitor" (monitor page).
 
 var HTML_FILE_NAMES = ['index', 'Index'];
@@ -40,7 +42,7 @@ var OPEN_STATUSES = ['Open', 'In Progress'];
 
 // Bumped when the JSON API changes. Clients check it (GET ?health=1) before sending
 // actions, so an outdated deployment is reported instead of misreading requests.
-var API_VERSION = 2;
+var API_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Web app entry points
@@ -70,7 +72,8 @@ var POST_ACTIONS = {
   completeTask: function(p) { return completeTask(p); },
   getMonitorData: function(p) { return getMonitorData(p); },
   monitorCreateTask: function(p) { return monitorCreateTask(p); },
-  monitorUpdateTask: function(p) { return monitorUpdateTask(p); }
+  monitorUpdateTask: function(p) { return monitorUpdateTask(p); },
+  monitorArchive: function(p) { return monitorArchive(p); }
 };
 
 function doPost(e) {
@@ -458,7 +461,8 @@ function buildMonitorData_(ss) {
     variances: variances.slice(0, 300),
     duplicates: duplicates.slice(0, 200),
     recent: recent.slice(0, 40),
-    totals: { records: rows.length, varianceCount: variances.length, duplicateCount: duplicates.length }
+    totals: { records: rows.length, varianceCount: variances.length, duplicateCount: duplicates.length },
+    archive: lastArchiveInfo_()
   };
 }
 
@@ -622,6 +626,235 @@ function cleanupBlankAuditRows() {
   var msg = report.length ? 'Removed blank rows: ' + report.join(', ') : 'No blank rows found.';
   Logger.log(msg);
   return msg;
+}
+
+// ---------------------------------------------------------------------------
+// Archive: keeps the last ARCHIVE_KEEP_DAYS days in this Sheet and moves older rows
+// to one archive spreadsheet per year ("CycleCount Archive 2026"), one tab per source
+// tab and month ("Master_Audit_Log 2026-08"). Moved: count rows of Master_Audit_Log and
+// every warehouse tab, plus Completed/Cancelled tasks (Count_Tasks) and their pallet
+// lists (Task_Expected). Open tasks and their lists always stay.
+// Before anything is removed, the tabs that will change are copied to a backup
+// spreadsheet ("CycleCount Backup (before last archive)"), replaced on every run.
+// ---------------------------------------------------------------------------
+var ARCHIVE_KEEP_DAYS = 90;
+
+// Run once from the editor: creates the monthly trigger (1st of each month, ~2 AM).
+function setupMonthlyArchive() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'runMonthlyArchive') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('runMonthlyArchive').timeBased().onMonthDay(1).atHour(2).create();
+  var msg = 'Monthly archive scheduled: 1st of each month around 2 AM (' + Session.getScriptTimeZone() +
+    '). Keeps the last ' + ARCHIVE_KEEP_DAYS + ' days.';
+  Logger.log(msg);
+  return msg;
+}
+
+function runMonthlyArchive() {
+  var res = archiveOldRecords_({});
+  Logger.log(JSON.stringify(res));
+  if (!res.ok) throw new Error(res.error); // shows in Executions and the failure email
+  return res;
+}
+
+// Monitor page: { code, dryRun } — dryRun only reports what would be moved.
+function monitorArchive(params) {
+  params = params || {};
+  try {
+    checkMonitorCode_(params.code);
+  } catch (err) {
+    return { ok: false, error: errorMessage_(err), authError: true };
+  }
+  return archiveOldRecords_({ dryRun: !!params.dryRun });
+}
+
+function archiveOldRecords_(opts) {
+  opts = opts || {};
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return { ok: false, error: 'Sheet is busy (lock timeout). Please retry.' };
+  try {
+    var ss = getSpreadsheet_();
+    var tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+    var cutoff = new Date(Date.now() - ARCHIVE_KEEP_DAYS * 86400000);
+    var plans = planArchive_(ss, cutoff);
+    var total = plans.reduce(function(n, p) { return n + p.old.length; }, 0);
+    var summary = { ok: true, dryRun: !!opts.dryRun, keepDays: ARCHIVE_KEEP_DAYS,
+      cutoff: cutoff.toISOString(), total: total, moved: {} };
+    plans.forEach(function(p) { if (p.old.length) summary.moved[p.name] = p.old.length; });
+    if (opts.dryRun || !total) return summary;
+
+    var changing = plans.filter(function(p) { return p.old.length; });
+    summary.backupUrl = backupTabs_(changing.map(function(p) { return p.sheet; }), tz);
+
+    // 1) copy old rows to the archive (by year, then source tab + month)
+    var archives = {};
+    changing.forEach(function(p) {
+      var groups = {};
+      p.old.forEach(function(o) {
+        var key = Utilities.formatDate(o.date, tz, 'yyyy-MM');
+        (groups[key] = groups[key] || []).push(o);
+      });
+      Object.keys(groups).sort().forEach(function(month) {
+        var year = month.slice(0, 4);
+        var arc = archives[year] = archives[year] || getArchiveSpreadsheet_(year);
+        var tab = getOrCreateSheet_(arc, (p.name + ' ' + month).slice(0, 100), p.header);
+        var rows = groups[month];
+        var range = tab.getRange(tab.getLastRow() + 1, 1, rows.length, p.header.length);
+        range.setNumberFormats(rows.map(function(o) { return o.formats; }));
+        range.setValues(rows.map(function(o) { return o.values; }));
+      });
+    });
+    SpreadsheetApp.flush();
+    summary.archiveUrls = Object.keys(archives).sort().map(function(y) { return archives[y].getUrl(); });
+
+    // 2) only then remove them here, bottom-up in runs of adjacent rows
+    changing.forEach(function(p) {
+      var rowsIdx = p.old.map(function(o) { return o.row; }).sort(function(a, b) { return b - a; });
+      var i = 0;
+      while (i < rowsIdx.length) {
+        var end = rowsIdx[i], start = end;
+        while (i + 1 < rowsIdx.length && rowsIdx[i + 1] === start - 1) { i++; start--; }
+        deleteRowsSafe_(p.sheet, start, end - start + 1);
+        i++;
+      }
+    });
+    SpreadsheetApp.flush();
+    clearMonitorCache_();
+    summary.ranAt = new Date().toISOString();
+    PropertiesService.getScriptProperties().setProperty('ARCHIVE_LAST_RUN', JSON.stringify(summary));
+    return summary;
+  } catch (err) {
+    return { ok: false, error: errorMessage_(err) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Works out which rows of which tabs are older than the cutoff. Nothing is changed.
+function planArchive_(ss, cutoff) {
+  var plans = [];
+  var oldTasks = {};
+  var taskSheet = ss.getSheetByName(TASK_TAB);
+  if (taskSheet) {
+    var tp = readTabForArchive_(taskSheet);
+    var tId = tp.header.indexOf('Task ID'), tSt = tp.header.indexOf('Status');
+    var tDone = tp.header.indexOf('Completed At'), tMade = tp.header.indexOf('Created At');
+    tp.old = [];
+    if (tId !== -1 && tSt !== -1) {
+      tp.rows.forEach(function(r) {
+        var st = String(r.values[tSt] || '');
+        if (st !== 'Completed' && st !== 'Cancelled') return;
+        var d = toDate_(tDone !== -1 && r.values[tDone] ? r.values[tDone] : (tMade !== -1 ? r.values[tMade] : ''));
+        if (d && d < cutoff) { r.date = d; tp.old.push(r); oldTasks[String(r.values[tId])] = d; }
+      });
+    }
+    plans.push(tp);
+  }
+  var expSheet = ss.getSheetByName(EXPECTED_TAB);
+  if (expSheet) {
+    var ep = readTabForArchive_(expSheet);
+    var eId = ep.header.indexOf('Task ID');
+    ep.old = eId === -1 ? [] : ep.rows.filter(function(r) {
+      var d = oldTasks[String(r.values[eId])];
+      if (d) r.date = d;
+      return !!d;
+    });
+    plans.push(ep);
+  }
+  ss.getSheets().forEach(function(sheet) {
+    var name = sheet.getName();
+    if (name === TASK_TAB || name === EXPECTED_TAB || sheet.getLastRow() < 2) return;
+    var head = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+    if (head.indexOf('Pallet LP') === -1 || head.indexOf('Timestamp') === -1) return; // not an audit tab
+    var p = readTabForArchive_(sheet);
+    var tsCol = p.header.indexOf('Timestamp');
+    p.old = p.rows.filter(function(r) {
+      var d = toDate_(r.values[tsCol]);
+      if (d) r.date = d;
+      return d && d < cutoff; // rows without a readable date always stay
+    });
+    plans.push(p);
+  });
+  plans.forEach(function(p) { delete p.rows; });
+  return plans;
+}
+
+function readTabForArchive_(sheet) {
+  var width = Math.max(1, sheet.getLastColumn());
+  var header = sheet.getRange(1, 1, 1, width).getValues()[0];
+  var rows = [];
+  var last = sheet.getLastRow();
+  if (last >= 2) {
+    var range = sheet.getRange(2, 1, last - 1, width);
+    var values = range.getValues(), formats = range.getNumberFormats();
+    values.forEach(function(v, i) {
+      if (v.some(function(x) { return x !== '' && x !== null; })) rows.push({ row: i + 2, values: v, formats: formats[i] });
+    });
+  }
+  return { sheet: sheet, name: sheet.getName(), header: header, rows: rows, old: [] };
+}
+
+function getArchiveSpreadsheet_(year) {
+  var props = PropertiesService.getScriptProperties();
+  var key = 'ARCHIVE_ID_' + year;
+  var id = props.getProperty(key);
+  if (id) {
+    try { return SpreadsheetApp.openById(id); } catch (e) { /* deleted or no access: make a new one */ }
+  }
+  var arc = SpreadsheetApp.create('CycleCount Archive ' + year);
+  var about = arc.getSheets()[0].setName('About');
+  about.getRange(1, 1, 3, 2).setValues([
+    ['CycleCount Pro archive', year],
+    ['What', 'Count rows and closed tasks older than ' + ARCHIVE_KEEP_DAYS + ' days, moved here from the live Sheet'],
+    ['Live Sheet', getSpreadsheet_().getUrl()]
+  ]);
+  props.setProperty(key, arc.getId());
+  return arc;
+}
+
+// Copies the given tabs to the backup spreadsheet, replacing the previous backup.
+function backupTabs_(sheets, tz) {
+  var props = PropertiesService.getScriptProperties();
+  var backup = null;
+  var id = props.getProperty('ARCHIVE_BACKUP_ID');
+  if (id) { try { backup = SpreadsheetApp.openById(id); } catch (e) { backup = null; } }
+  if (!backup) {
+    backup = SpreadsheetApp.create('CycleCount Backup (before last archive)');
+    props.setProperty('ARCHIVE_BACKUP_ID', backup.getId());
+  }
+  var temp = backup.insertSheet('_tmp_' + Date.now());
+  backup.getSheets().forEach(function(sh) { if (sh.getSheetId() !== temp.getSheetId()) backup.deleteSheet(sh); });
+  sheets.forEach(function(sh) { sh.copyTo(backup).setName(sh.getName()); });
+  var info = backup.insertSheet('Backup info', 0);
+  info.getRange(1, 1, 2, 2).setValues([
+    ['Backed up at', Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm')],
+    ['From', getSpreadsheet_().getUrl()]
+  ]);
+  backup.deleteSheet(temp);
+  return backup.getUrl();
+}
+
+// A sheet must keep at least one row below its frozen header.
+function deleteRowsSafe_(sheet, start, count) {
+  var spare = sheet.getMaxRows() - Math.max(1, sheet.getFrozenRows()) - count;
+  if (spare < 1) sheet.insertRowsAfter(sheet.getMaxRows(), 1 - spare);
+  sheet.deleteRows(start, count);
+}
+
+function lastArchiveInfo_() {
+  var info = { keepDays: ARCHIVE_KEEP_DAYS, lastRun: null, lastTotal: 0 };
+  try {
+    var last = JSON.parse(PropertiesService.getScriptProperties().getProperty('ARCHIVE_LAST_RUN') || 'null');
+    if (last) { info.lastRun = last.ranAt || null; info.lastTotal = last.total || 0; }
+  } catch (e) { /* ignore */ }
+  return info;
+}
+
+function toDate_(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  var d = Object.prototype.toString.call(v) === '[object Date]' ? v : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 // ---------------------------------------------------------------------------
