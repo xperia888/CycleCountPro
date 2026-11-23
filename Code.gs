@@ -5,6 +5,7 @@
 //                     (Extensions -> Apps Script); otherwise not needed.
 //   * MONITOR_CODE    access code for the manager monitor page (?view=monitor).
 //                     Use a long code; changing it signs out every monitor screen.
+// Times written by versions before Nov 2026 were UTC text: run fixSheetTimes once.
 // Monthly archive (keeps the last 90 days in this Sheet): select setupMonthlyArchive
 // in the editor and press Run once, then approve the permissions it asks for.
 // HTML files in the project: "index" (counter app) and "monitor" (monitor page).
@@ -39,6 +40,12 @@ var EXPECTED_HEADERS = [
 ];
 
 var OPEN_STATUSES = ['Open', 'In Progress'];
+
+// Times are stored as real date-times (shown in the Sheet's time zone, File > Settings),
+// not as UTC text, so they read as local time and sort and filter as dates.
+var DATE_TIME_FORMAT = 'yyyy-mm-dd hh:mm:ss';
+var SHEET_TIME_ZONE = 'America/Los_Angeles';
+var TASK_TIME_COLS = ['Created At', 'Started At', 'Completed At'];
 
 // Bumped when the JSON API changes. Clients check it (GET ?health=1) before sending
 // actions, so an outdated deployment is reported instead of misreading requests.
@@ -155,7 +162,9 @@ function appendAuditRecords(payload) {
     Object.keys(rowsByTab).forEach(function(tabName) {
       var sheet = tabName === MASTER_TAB ? master : getOrCreateSheet_(ss, tabName, HEADERS);
       var rows = rowsByTab[tabName];
-      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS.length).setValues(rows);
+      var start = sheet.getLastRow() + 1;
+      sheet.getRange(start, 1, rows.length, HEADERS.length).setValues(rows);
+      sheet.getRange(start, COL['Timestamp'] + 1, rows.length, 1).setNumberFormat(DATE_TIME_FORMAT);
     });
     SpreadsheetApp.flush();
     clearMonitorCache_();
@@ -205,7 +214,7 @@ function createTask(params) {
       status: 'In Progress',
       source: 'Counter',
       createdBy: counter || 'Counter',
-      startedAt: new Date().toISOString(),
+      startedAt: new Date(),
       notes: params.notes
     });
     clearMonitorCache_();
@@ -223,7 +232,7 @@ function startTask(params) {
     if (!found) throw new Error('Task ' + params.taskId + ' not found.');
     var t = found.task;
     var items = Array.isArray(params.items) ? params.items : [];
-    var now = new Date().toISOString();
+    var now = new Date();
 
     var expSheet = getOrCreateSheet_(ss, EXPECTED_TAB, EXPECTED_HEADERS);
     var lastRow = expSheet.getLastRow();
@@ -238,7 +247,12 @@ function startTask(params) {
         Number(i.sysActualQty || 0), i.customerNo || t.customerNo, now];
     });
     var all = keep.concat(fresh);
-    if (all.length) expSheet.getRange(2, 1, all.length, EXPECTED_HEADERS.length).setValues(all);
+    if (all.length) {
+      expSheet.getRange(2, 1, all.length, EXPECTED_HEADERS.length).setValues(all.map(function(r) {
+        r[8] = sheetTime_(r[8]); return r;
+      }));
+      expSheet.getRange(2, 9, all.length, 1).setNumberFormat(DATE_TIME_FORMAT);
+    }
 
     var updates = { 'Status': 'In Progress', 'Expected Pallets': fresh.length };
     if (!t.startedAt) updates['Started At'] = now;
@@ -256,7 +270,7 @@ function completeTask(params) {
     var ss = getSpreadsheet_();
     var found = findTask_(ss, params.taskId);
     if (!found) throw new Error('Task ' + params.taskId + ' not found.');
-    writeTaskFields_(found.sheet, found.row, { 'Status': 'Completed', 'Completed At': new Date().toISOString() });
+    writeTaskFields_(found.sheet, found.row, { 'Status': 'Completed', 'Completed At': new Date() });
     clearMonitorCache_();
     return { ok: true, task: findTask_(ss, params.taskId).task };
   });
@@ -327,7 +341,7 @@ function monitorUpdateTask(params) {
       var allowed = ['Open', 'In Progress', 'Completed', 'Cancelled'];
       if (allowed.indexOf(params.status) === -1) throw new Error('Unknown status ' + params.status);
       updates['Status'] = params.status;
-      if (params.status === 'Completed') updates['Completed At'] = new Date().toISOString();
+      if (params.status === 'Completed') updates['Completed At'] = new Date();
       if (params.status === 'Open' || params.status === 'In Progress') updates['Completed At'] = '';
     }
     if (params.assignedTo !== undefined) updates['Assigned To'] = String(params.assignedTo || '').trim();
@@ -506,11 +520,14 @@ function readTasks_(ss) {
     if (!r[TCOL['Task ID']]) { r[TCOL['Task ID']] = newTaskId_(); changed = true; }
     if (!r[TCOL['Status']]) { r[TCOL['Status']] = 'Open'; changed = true; }
     if (!r[TCOL['Source']]) { r[TCOL['Source']] = 'Supervisor'; changed = true; }
-    if (!r[TCOL['Created At']]) { r[TCOL['Created At']] = new Date().toISOString(); changed = true; }
+    if (!r[TCOL['Created At']]) { r[TCOL['Created At']] = new Date(); changed = true; }
     if (changed) fills.push({ row: i + 2, values: r });
     tasks.push(taskFromRow_(r));
   });
-  fills.forEach(function(f) { sheet.getRange(f.row, 1, 1, TASK_HEADERS.length).setValues([f.values]); });
+  fills.forEach(function(f) {
+    sheet.getRange(f.row, 1, 1, TASK_HEADERS.length).setValues([f.values]);
+    formatTaskTimes_(sheet, f.row, 1);
+  });
   return tasks;
 }
 
@@ -544,13 +561,15 @@ function addTask_(ss, t) {
   row[TCOL['Assigned To']] = String(t.assignedTo || '').trim();
   row[TCOL['Status']] = t.status || 'Open';
   row[TCOL['Source']] = t.source || '';
-  row[TCOL['Created At']] = new Date().toISOString();
+  row[TCOL['Created At']] = new Date();
   row[TCOL['Created By']] = t.createdBy || '';
-  row[TCOL['Started At']] = t.startedAt || '';
+  row[TCOL['Started At']] = sheetTime_(t.startedAt);
   row[TCOL['Completed At']] = '';
   row[TCOL['Expected Pallets']] = '';
   row[TCOL['Notes']] = String(t.notes || '').trim();
-  sheet.getRange(sheet.getLastRow() + 1, 1, 1, TASK_HEADERS.length).setValues([row]);
+  var at = sheet.getLastRow() + 1;
+  sheet.getRange(at, 1, 1, TASK_HEADERS.length).setValues([row]);
+  formatTaskTimes_(sheet, at, 1);
   return taskFromRow_(row);
 }
 
@@ -570,7 +589,9 @@ function findTask_(ss, taskId) {
 
 function writeTaskFields_(sheet, row, updates) {
   Object.keys(updates).forEach(function(h) {
-    sheet.getRange(row, TCOL[h] + 1).setValue(updates[h]);
+    var cell = sheet.getRange(row, TCOL[h] + 1);
+    cell.setValue(updates[h]);
+    if (Object.prototype.toString.call(updates[h]) === '[object Date]') cell.setNumberFormat(DATE_TIME_FORMAT);
   });
 }
 
@@ -624,6 +645,55 @@ function cleanupBlankAuditRows() {
   });
   clearMonitorCache_();
   var msg = report.length ? 'Removed blank rows: ' + report.join(', ') : 'No blank rows found.';
+  Logger.log(msg);
+  return msg;
+}
+
+// ---------------------------------------------------------------------------
+// One-off fix: run from the Apps Script editor (select fixSheetTimes, Run).
+// Older versions wrote times as UTC text ("2026-11-23T15:40:12.345Z"), 8 hours ahead
+// of California. This turns them into real date-times shown in local time, and sets
+// the Sheet's time zone to America/Los_Angeles if it is something else.
+// Safe to run more than once: cells that are already date-times are left alone.
+// ---------------------------------------------------------------------------
+function fixSheetTimes() {
+  var ss = getSpreadsheet_();
+  var report = [];
+  var tz = ss.getSpreadsheetTimeZone();
+  if (tz !== SHEET_TIME_ZONE) {
+    ss.setSpreadsheetTimeZone(SHEET_TIME_ZONE);
+    report.push('Sheet time zone ' + tz + ' -> ' + SHEET_TIME_ZONE);
+  }
+  ss.getSheets().forEach(function(sheet) {
+    var last = sheet.getLastRow();
+    if (last < 2) return;
+    var head = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+    var cols;
+    var name = sheet.getName();
+    if (name === TASK_TAB) cols = TASK_TIME_COLS;
+    else if (name === EXPECTED_TAB) cols = ['Uploaded At'];
+    else if (head.indexOf('Pallet LP') !== -1) cols = ['Timestamp'];
+    else return;
+    var fixed = 0;
+    cols.forEach(function(h) {
+      var c = head.indexOf(h);
+      if (c === -1) return;
+      var range = sheet.getRange(2, c + 1, last - 1, 1);
+      var values = range.getValues();
+      var changed = false;
+      values.forEach(function(r) {
+        if (typeof r[0] === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(r[0])) {
+          var d = toDate_(r[0]);
+          if (d) { r[0] = d; changed = true; fixed++; }
+        }
+      });
+      if (changed) range.setValues(values);
+      range.setNumberFormat(DATE_TIME_FORMAT);
+    });
+    if (fixed) report.push(name + ': ' + fixed + ' times converted');
+  });
+  clearMonitorCache_();
+  var msg = report.length ? report.join('; ') : 'All times were already date-times.';
   Logger.log(msg);
   return msg;
 }
@@ -947,7 +1017,7 @@ function buildRow_(r, recordId) {
   var counted = Number(r.actualQty || 0);
   var variance = counted - sysActual;
   return [
-    r.countedAt || new Date().toISOString(),
+    sheetTime_(r.countedAt) || new Date(),
     r.warehouseId || '',
     r.auditor || '',
     r.lpn || '',
@@ -974,6 +1044,19 @@ function buildRow_(r, recordId) {
 
 function safeTabName_(s) {
   return String(s).replace(/[^\w-]/g, '_');
+}
+
+// ISO text or Date -> Date for the Sheet; blank stays blank; unreadable text is kept as is.
+function sheetTime_(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  var d = toDate_(v);
+  return d || v;
+}
+
+function formatTaskTimes_(sheet, row, count) {
+  TASK_TIME_COLS.forEach(function(h) {
+    sheet.getRange(row, TCOL[h] + 1, count, 1).setNumberFormat(DATE_TIME_FORMAT);
+  });
 }
 
 function toIso_(v) {

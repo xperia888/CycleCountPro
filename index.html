@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-23.1';
+    window.CCP_BUILD = '2026-11-23.2';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -579,7 +579,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-23.1</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-23.2</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -964,6 +964,15 @@
 
     // Plain-language error for when the browser cannot reach the WMS at all
     // (offline, VPN/firewall, server down). fetch() reports these as TypeError.
+    // Device-local time as yyyy-mm-dd hh:mm:ss (records keep UTC ISO; people read local time).
+    function localStamp(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    }
+
     function wmsUnreachableError(url) {
       let host = url;
       try { host = new URL(url, window.location.href).host; } catch (e) { /* keep raw */ }
@@ -2411,7 +2420,7 @@
         'Counted': i.counted ? i.actualQty : '',
         'Variance': i.counted ? (i.actualQty - i.sysActualQty) : '',
         'Status': i.counted ? 'Audited' : 'Pending',
-        'Counted At': i.countedAt || '',
+        'Counted At': localStamp(i.countedAt),
         'Reason': i.reasonCode || '',
         'Notes': i.notes || ''
       }));
