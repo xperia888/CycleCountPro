@@ -6,7 +6,7 @@
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.6';
+    window.CCP_BUILD = '2026-11-22.7';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -559,7 +559,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.6</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.7</span></div>
 
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
@@ -913,6 +913,7 @@
     let idleLogoutTimer = null;
     let isCloudSyncFlushing = false;
     let syncRetryTimer = null;
+    let wmsWarehouseFilterUnsupported = false;
     let audioCtx = null;
 
     const authSession = {
@@ -1632,6 +1633,10 @@
         if (inboundNo) filterModel.inbound_no = { filterType: 'text', type: inboundOp, filter: inboundNo };
         if (palletNo) filterModel.pallet_no = { filterType: 'text', type: palletOp, filter: palletNo };
         if (poNo) filterModel.po_no = { filterType: 'text', type: 'contains', filter: poNo };
+        // Ask the WMS for the active warehouse only (column wh_no). Skipped if the WMS rejected it before.
+        if (!wmsWarehouseFilterUnsupported) {
+          filterModel.wh_no = { filterType: 'text', type: 'equals', filter: this.getSelectedWarehouseId() };
+        }
 
         const locs = overrideLoc
           ? [overrideLoc]
@@ -1667,15 +1672,17 @@
         const lpn = String(rec.pallet_no || rec.palletNo || rec.lpn || `ROW-${idx + 1}`).trim().toUpperCase();
         const sysLoc = String(rec.storage_code || rec.location_code || rec.location || '').trim().toUpperCase();
         const itemId = String(rec.product_code || rec.sku || rec.item_code || '').trim().toUpperCase();
-        const itemName = String(rec.product_name || rec.short_desc || rec.description || itemId || 'Unnamed Item').trim();
+        const itemName = String(rec.product_name || rec.product_spec || rec.short_desc || rec.description || itemId || 'Unnamed Item').trim();
         const inboundNo = String(
           rec.inbound_no || rec.inboundNo || rec.receipt_no || rec.asn_no ||
           rec.inbound_order_no || rec.source_no || rec.putaway_no || rec.reference_no || ''
         ).trim();
         const poNo = String(rec.po_no || rec.poNo || rec.purchase_order_no || '').trim();
-        const sysActual = Number(rec.actual_qty ?? rec.qty ?? rec.stock_qty ?? 0);
-        const sysAlloc = Number(rec.allocated_qty ?? rec.allocation_qty ?? rec.locked_qty ?? 0);
-        const sysAvail = Number(rec.available_qty ?? rec.remaining_qty ?? Math.max(0, sysActual - sysAlloc));
+        // WMS fields: actual_nums / booked_nums / available_nums (older names kept as fallbacks)
+        const num = (...vals) => { for (const v of vals) { if (v !== null && v !== undefined && v !== '' && !isNaN(Number(v))) return Number(v); } return null; };
+        const sysActual = num(rec.actual_nums, rec.actual_qty, rec.qty, rec.stock_qty) ?? 0;
+        const sysAlloc = num(rec.booked_nums, rec.allocated_qty, rec.allocation_qty, rec.locked_qty) ?? 0;
+        const sysAvail = num(rec.available_nums, rec.available_qty, rec.remaining_qty) ?? Math.max(0, sysActual - sysAlloc);
 
         return {
           id: `wms_${lpn}_${itemId}_${sysLoc}_${idx}`,
@@ -1684,12 +1691,13 @@
           poNo,
           customerNo: String(rec.owner_no || rec.customer_no || '').trim(),
           customerName: String(rec.owner_name || rec.customer_name || '').trim(),
-          warehouseId: String(rec.warehouse_id || this.getSelectedWarehouseId()).trim(),
+          // The WMS reports the warehouse as wh_no; only fall back to the selection if it is missing.
+          warehouseId: String(rec.wh_no || rec.warehouse_no || rec.warehouse_code || rec.warehouse_id || rec.warehouseId || this.getSelectedWarehouseId()).trim(),
           sysLocation: sysLoc,
           actualLocation: sysLoc,
           itemId,
           itemName,
-          barcode: String(rec.barcode || rec.upc || itemId).trim().toUpperCase(),
+          barcode: String(rec.product_barcode || rec.barcode || rec.upc || itemId).trim().toUpperCase(),
           sysActualQty: sysActual,
           sysAllocQty: sysAlloc,
           sysAvailQty: sysAvail,
@@ -1703,6 +1711,19 @@
       },
 
       async postQuery(payload, signal) {
+        try {
+          return await this.postQueryOnce(payload, signal);
+        } catch (err) {
+          if (err.name === 'AbortError' || !payload?.filterModel?.wh_no) throw err;
+          // The WMS may not support filtering on wh_no: retry without it; rows are
+          // still filtered by warehouse in the app before import.
+          wmsWarehouseFilterUnsupported = true;
+          const { wh_no, ...rest } = payload.filterModel;
+          return await this.postQueryOnce({ ...payload, filterModel: rest }, signal);
+        }
+      },
+
+      async postQueryOnce(payload, signal) {
         const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
         const directUrl = (document.getElementById('wms-endpoint-url')?.value || 'https://prd-onus.target-ai.com:18890/api/inventory/query/storageAndInboundDate').trim();
         const proxyUrl = (document.getElementById('wms-proxy-url')?.value || '/api/wms/inventory').trim();
@@ -2946,7 +2967,10 @@
             previewEl.textContent = JSON.stringify({
               status: 'SUCCESS',
               totalFetched: items.length,
-              sampleMappedRecord: items[0] || null,
+              activeWarehouse: state.activeWarehouse,
+              rowsPerWarehouse: items.reduce((acc, i) => { acc[i.warehouseId] = (acc[i.warehouseId] || 0) + 1; return acc; }, {}),
+              wmsWarehouseFilter: wmsWarehouseFilterUnsupported ? 'not supported by WMS (filtered in app)' : 'sent (wh_no)',
+              sampleMappedRecord: items.find(i => normalizeWarehouseId(i.warehouseId) === state.activeWarehouse) || items[0] || null,
               sampleRawWmsRecord: sampleRaw || null
             }, null, 2);
           }
@@ -2960,8 +2984,14 @@
           const syncMode = document.getElementById('wms-sync-mode')?.value || 'REPLACE';
           const whId = WmsInventoryApiService.getSelectedWarehouseId();
           const kept = applyImportedItems(items, `WMS API (${whId})`, syncMode === 'REPLACE');
+          if (!kept) {
+            const returned = Array.from(new Set(items.map(i => i.warehouseId))).join(', ');
+            if (statusEl) statusEl.textContent = `0 ${whId} pallets (WMS returned ${returned})`;
+            showToast(`WMS returned no ${whId} stock, only ${returned}. Nothing was imported; your current data is unchanged.`, 'error');
+            return;
+          }
           if (statusEl) statusEl.textContent = `Imported ${kept} pallets`;
-          showToast(`Imported ${kept} pallet records from WMS (${whId}).`, kept ? 'success' : 'warn');
+          showToast(`Imported ${kept} pallet records from WMS (${whId}).`, 'success');
           closeModal('wms-modal');
         } catch (err) {
           if (err.name === 'AbortError') {
