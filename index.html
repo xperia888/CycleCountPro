@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.11';
+    window.CCP_BUILD = '2026-11-22.12';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -579,7 +579,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.11</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.12</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -1735,6 +1735,7 @@
     async function callServer(fnName, payload) {
       if (IS_APPS_SCRIPT_HOSTED) return callAppsScript(fnName, payload);
       const url = GoogleSheetCloudSync.getEffectiveUrl();
+      await checkBackendApi(url);
       const res = await fetch(url, {
         method: 'POST',
         redirect: 'follow',
@@ -1743,6 +1744,27 @@
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
+    }
+
+    // An older backend would save task requests as blank count rows, so confirm its API
+    // version (GET ?health=1) once before sending any task action.
+    const MIN_BACKEND_API = 2;
+    let backendApiCheck = null;
+    function checkBackendApi(url) {
+      if (!backendApiCheck) {
+        backendApiCheck = fetch(`${url}${url.includes('?') ? '&' : '?'}health=1`, { redirect: 'follow' })
+          .then(res => res.text())
+          .then(text => {
+            let h;
+            try { h = JSON.parse(text); } catch (e) { throw new Error('Could not reach the Google Sheet backend'); }
+            if (!(Number(h.apiVersion) >= MIN_BACKEND_API)) {
+              throw new Error('The Google Sheet backend (Apps Script) is an older version: update Code.gs and deploy a New version');
+            }
+            return h;
+          });
+        backendApiCheck.catch(() => { backendApiCheck = null; });
+      }
+      return backendApiCheck;
     }
 
     const TaskService = {
