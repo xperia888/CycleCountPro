@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CycleCount Pro — Monitoring Center</title>
+  <style>
+    :root {
+      --bg: #0b1120; --panel: #111827; --panel2: #1f2937; --line: #263244;
+      --text: #e5e7eb; --muted: #94a3b8; --accent: #6366f1; --ok: #10b981;
+      --warn: #f59e0b; --bad: #f43f5e; --info: #38bdf8;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 20px;
+      background: #0f172a; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+    @media (max-width: 700px) { header { position: static; } }
+    header h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -0.01em; }
+    header h1 span { color: #818cf8; }
+    .spacer { flex: 1; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    select, input, button { font: inherit; color: inherit; }
+    select, input[type=text], input[type=password] { background: var(--panel2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 7px 10px; min-height: 36px; }
+    button { border: 0; border-radius: 10px; padding: 7px 12px; min-height: 36px; font-weight: 700; cursor: pointer;
+      background: var(--panel2); }
+    button.primary { background: var(--accent); color: #fff; }
+    button.ghost { background: transparent; border: 1px solid var(--line); }
+    button.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; border-radius: 8px; }
+    button:disabled { opacity: .5; cursor: default; }
+    main { padding: 16px 20px 40px; display: grid; gap: 16px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+    .kpi .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .kpi .value { font-size: 28px; font-weight: 800; margin-top: 2px; }
+    .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    .panel h2 { font-size: 14px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 8px; }
+    .panel h2 .count { color: var(--muted); font-weight: 600; }
+    .panel .body { padding: 10px 14px; }
+    .scroll { max-height: 420px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 8px 10px;
+      position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line); }
+    td { padding: 8px 10px; border-bottom: 1px solid #1b2535; vertical-align: top; }
+    td.num, th.num { text-align: right; }
+    .task { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1.2fr) auto; gap: 8px 16px;
+      padding: 12px 14px; border-bottom: 1px solid #1b2535; align-items: center; }
+    .task:last-child { border-bottom: 0; }
+    @media (max-width: 700px) { .task { grid-template-columns: 1fr; } }
+    .task .title { font-weight: 800; }
+    .bar { height: 10px; background: #1e293b; border-radius: 99px; overflow: hidden; }
+    .bar > div { height: 100%; background: var(--ok); border-radius: 99px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+    .b-open { background: #1e3a8a55; color: #93c5fd; }
+    .b-prog { background: #06513f66; color: #6ee7b7; }
+    .b-done { background: #33415566; color: #cbd5e1; }
+    .b-cancel { background: #4c051955; color: #fda4af; }
+    .b-stalled { background: #78350f66; color: #fcd34d; }
+    .pos { color: var(--ok); } .neg { color: var(--bad); }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 99px; margin-right: 6px; vertical-align: middle; }
+    .actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .empty { color: var(--muted); padding: 14px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .overlay { position: fixed; inset: 0; background: #020617cc; display: flex; align-items: center; justify-content: center;
+      padding: 16px; z-index: 20; }
+    .overlay.hidden, .hidden { display: none !important; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; }
+    .card h3 { margin: 0 0 6px; }
+    .stack { display: grid; gap: 10px; }
+    .msg { padding: 9px 12px; border-radius: 10px; font-size: 13px; }
+    .msg.err { background: #4c0519aa; color: #fecdd3; }
+    .msg.ok { background: #064e3baa; color: #a7f3d0; }
+    label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+    .err-banner { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 50; padding: 10px 12px; border-radius: 10px;
+      background: #b91c1c; color: #fff; font: 12px/1.4 monospace; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <!-- Access code gate -->
+  <div id="gate" class="overlay">
+    <form id="gate-form" class="card stack" autocomplete="off">
+      <div>
+        <h3>CycleCount Pro — Monitoring Center</h3>
+        <div class="muted small">Enter the monitor access code. Ask the administrator if you don't have it.</div>
+      </div>
+      <input id="gate-code" type="password" placeholder="Access code" autofocus />
+      <label class="chk"><input id="gate-remember" type="checkbox" checked /> Remember on this device</label>
+      <div id="gate-msg" class="msg err hidden"></div>
+      <button class="primary" type="submit" id="gate-btn">Open monitor</button>
+    </form>
+  </div>
+
+  <!-- Assign task -->
+  <div id="assign" class="overlay hidden">
+    <form id="assign-form" class="card stack" autocomplete="off">
+      <h3>Assign a count task</h3>
+      <select id="as-wh">
+        <option value="ONUS-ONT">ONUS-ONT</option>
+        <option value="ONUS-Chino">ONUS-Chino</option>
+      </select>
+      <input id="as-customer" type="text" placeholder="Customer No. (e.g. ONUS-001)" class="mono" />
+      <input id="as-name" type="text" placeholder="Customer name (optional)" />
+      <input id="as-locations" type="text" placeholder="Locations (optional, comma separated)" class="mono" />
+      <input id="as-counter" type="text" placeholder="Assign to: counter's WMS username (blank = anyone)" />
+      <input id="as-notes" type="text" placeholder="Notes (optional)" />
+      <div id="assign-msg" class="msg hidden"></div>
+      <div class="toolbar" style="justify-content:flex-end">
+        <button type="button" class="ghost" id="assign-cancel">Close</button>
+        <button type="submit" class="primary" id="assign-save">Create task</button>
+      </div>
+    </form>
+  </div>
+
+  <header>
+    <h1>CycleCount<span>Pro</span> · Monitoring Center</h1>
+    <div class="spacer"></div>
+    <div class="toolbar">
+      <select id="f-wh" title="Warehouse">
+        <option value="">All warehouses</option>
+        <option value="ONUS-ONT">ONUS-ONT</option>
+        <option value="ONUS-Chino">ONUS-Chino</option>
+      </select>
+      <label class="chk"><input id="f-closed" type="checkbox" /> Show completed</label>
+      <label class="chk"><input id="f-auto" type="checkbox" checked /> Auto-refresh</label>
+      <button id="refresh-btn" class="ghost" type="button">Refresh</button>
+      <button id="assign-btn" class="primary" type="button">+ Assign task</button>
+      <button id="lock-btn" class="ghost" type="button" title="Forget the access code on this device">Lock</button>
+    </div>
+    <div class="small muted" style="width:100%">Updated <span id="updated">—</span> · <span id="status-line"></span></div>
+  </header>
+
+  <main>
+    <section class="kpis">
+      <div class="kpi"><div class="label">Active tasks</div><div class="value" id="k-active">–</div></div>
+      <div class="kpi"><div class="label">Pallets counted (active tasks)</div><div class="value" id="k-counted">–</div></div>
+      <div class="kpi"><div class="label">Overall progress</div><div class="value" id="k-progress">–</div></div>
+      <div class="kpi"><div class="label">Counters active (15 min)</div><div class="value" id="k-counters">–</div></div>
+      <div class="kpi"><div class="label">Variances</div><div class="value" id="k-var" style="color:var(--bad)">–</div></div>
+      <div class="kpi"><div class="label">Double-counted pallets</div><div class="value" id="k-dup" style="color:var(--warn)">–</div></div>
+    </section>
+
+    <div class="grid2">
+      <section class="panel">
+        <h2>Count tasks <span class="count" id="tasks-count"></span></h2>
+        <div id="tasks"></div>
+      </section>
+      <section class="panel">
+        <h2>Counters <span class="count" id="counters-count"></span></h2>
+        <div class="scroll"><table><thead><tr><th>Counter</th><th>Working on</th><th class="num">Today</th><th>Last count</th></tr></thead>
+          <tbody id="counters"></tbody></table></div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>Variances <span class="count" id="var-count"></span></h2>
+      <div class="scroll"><table><thead><tr>
+        <th>Time</th><th>Warehouse</th><th>Customer</th><th>Pallet LP</th><th>Item</th>
+        <th class="num">System</th><th class="num">Counted</th><th class="num">Diff</th><th>Location</th><th>Counter</th><th>Reason / notes</th>
+      </tr></thead><tbody id="variances"></tbody></table></div>
+    </section>
+
+    <div class="grid2">
+      <section class="panel">
+        <h2>Double-counted pallets <span class="count" id="dup-count"></span></h2>
+        <div class="scroll"><table><thead><tr><th>Pallet LP</th><th>Warehouse</th><th>Counted by</th><th>Tasks</th><th>Counts</th></tr></thead>
+          <tbody id="dups"></tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>Latest activity</h2>
+        <div class="scroll"><table><thead><tr><th>Time</th><th>Counter</th><th>Pallet</th><th class="num">Diff</th></tr></thead>
+          <tbody id="recent"></tbody></table></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // Show any script error on screen (TVs and phones have no console).
+    window.addEventListener('error', function (e) {
+      var b = document.createElement('div');
+      b.className = 'err-banner';
+      b.textContent = 'Monitor error: ' + (e.message || 'Script error') + (e.lineno ? ' @ line ' + e.lineno : '');
+      (document.body || document.documentElement).appendChild(b);
+    });
+
+    var CODE_KEY = 'ccp_monitor_code_v1';
+    var REFRESH_MS = 30000;
+    var STALL_MIN = 15;
+    var mon = { code: '', data: null, timer: null, loading: false };
+
+    function $(id) { return document.getElementById(id); }
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+    function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+
+    function ago(iso) {
+      if (!iso) return '—';
+      var ms = Date.now() - new Date(iso).getTime();
+      if (isNaN(ms)) return '—';
+      var m = Math.round(ms / 60000);
+      if (m < 1) return 'just now';
+      if (m < 60) return m + ' min ago';
+      var h = Math.floor(m / 60);
+      if (h < 24) return h + ' h ' + (m % 60) + ' min ago';
+      return new Date(iso).toLocaleString();
+    }
+    function minutesSince(iso) { return iso ? (Date.now() - new Date(iso).getTime()) / 60000 : Infinity; }
+    function clock(iso) { return iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; }
+    function signed(n) { n = Number(n || 0); return (n > 0 ? '+' : '') + n; }
+
+    function server(fn, payload) {
+      return new Promise(function (resolve, reject) {
+        if (!(window.google && google.script && google.script.run)) {
+          reject(new Error('Open this page from the Apps Script link (…/exec?view=monitor).'));
+          return;
+        }
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
+          reject(e instanceof Error ? e : new Error(String((e && e.message) || e)));
+        })[fn](payload);
+      });
+    }
+
+    // ---------------------------------------------------------------- access
+    function showGate(msg) {
+      stopTimer();
+      $('gate').classList.remove('hidden');
+      $('gate-msg').classList.toggle('hidden', !msg);
+      $('gate-msg').textContent = msg || '';
+      setTimeout(function () { $('gate-code').focus(); }, 50);
+    }
+
+    function unlock(code, remember) {
+      $('gate-btn').disabled = true;
+      return server('getMonitorData', { code: code }).then(function (res) {
+        if (!res || !res.ok) {
+          if (remember !== null) store(CODE_KEY, null);
+          showGate(res && res.error ? res.error : 'Could not open the monitor.');
+          return;
+        }
+        mon.code = code;
+        if (remember) store(CODE_KEY, code);
+        $('gate').classList.add('hidden');
+        $('gate-code').value = '';
+        render(res);
+        startTimer();
+      }).catch(function (err) {
+        showGate(err.message);
+      }).then(function () { $('gate-btn').disabled = false; });
+    }
+
+    // ---------------------------------------------------------------- data
+    function refresh() {
+      if (!mon.code || mon.loading) return;
+      mon.loading = true;
+      $('status-line').textContent = 'Refreshing…';
+      server('getMonitorData', { code: mon.code }).then(function (res) {
+        if (!res || !res.ok) {
+          if (res && res.authError) { store(CODE_KEY, null); mon.code = ''; showGate(res.error); return; }
+          $('status-line').textContent = 'Refresh failed: ' + (res && res.error ? res.error : 'unknown error');
+          return;
+        }
+        render(res);
+      }).catch(function (err) {
+        $('status-line').textContent = 'Refresh failed: ' + err.message + ' (will retry)';
+      }).then(function () { mon.loading = false; });
+    }
+
+    function startTimer() {
+      stopTimer();
+      if ($('f-auto').checked) mon.timer = setInterval(refresh, REFRESH_MS);
+    }
+    function stopTimer() { if (mon.timer) clearInterval(mon.timer); mon.timer = null; }
+
+    function render(data) {
+      mon.data = data;
+      $('updated').textContent = new Date(data.generatedAt).toLocaleTimeString();
+      $('status-line').textContent = $('f-auto').checked ? 'auto-refresh every 30 s' : 'auto-refresh off';
+      var wh = $('f-wh').value;
+      var showClosed = $('f-closed').checked;
+      var inWh = function (x) { return !wh || String(x.warehouseId).toUpperCase() === wh.toUpperCase(); };
+
+      var allTasks = (data.tasks || []).filter(inWh);
+      var active = allTasks.filter(function (t) { return t.status === 'Open' || t.status === 'In Progress'; });
+      var tasks = showClosed ? allTasks : active;
+      tasks.sort(function (a, b) {
+        var rank = { 'In Progress': 0, 'Open': 1, 'Completed': 2, 'Cancelled': 3 };
+        return (rank[a.status] - rank[b.status]) || String(b.lastActivity || b.createdAt).localeCompare(String(a.lastActivity || a.createdAt));
+      });
+
+      var expected = 0, done = 0, counted = 0;
+      active.forEach(function (t) { expected += t.expected; done += Math.min(t.countedExpected, t.expected); counted += t.counted; });
+      var counters = (data.counters || []).filter(function (c) { return !wh || inWh(c); });
+      var variances = (data.variances || []).filter(inWh);
+      var dups = (data.duplicates || []).filter(inWh);
+
+      $('k-active').textContent = active.length;
+      $('k-counted').textContent = counted;
+      $('k-progress').textContent = expected ? Math.round(done / expected * 100) + '%' : '—';
+      $('k-counters').textContent = counters.filter(function (c) { return minutesSince(c.lastActivity) <= 15; }).length;
+      $('k-var').textContent = variances.length;
+      $('k-dup').textContent = dups.length;
+
+      renderTasks(tasks);
+      renderCounters(counters);
+      renderVariances(variances);
+      renderDups(dups);
+      renderRecent((data.recent || []).filter(inWh));
+    }
+
+    function statusBadge(t) {
+      var cls = { 'Open': 'b-open', 'In Progress': 'b-prog', 'Completed': 'b-done', 'Cancelled': 'b-cancel' }[t.status] || 'b-open';
+      var html = '<span class="badge ' + cls + '">' + esc(t.status) + '</span>';
+      var since = t.lastActivity || t.startedAt;
+      if (t.status === 'In Progress' && minutesSince(since) > STALL_MIN) {
+        html += ' <span class="badge b-stalled">No counts for ' + Math.round(minutesSince(since)) + ' min</span>';
+      }
+      return html;
+    }
+
+    function renderTasks(tasks) {
+      $('tasks-count').textContent = '(' + tasks.length + ')';
+      if (!tasks.length) { $('tasks').innerHTML = '<div class="empty">No tasks to show. Use “+ Assign task”, or counters can start their own.</div>'; return; }
+      $('tasks').innerHTML = tasks.map(function (t) {
+        var pct = t.expected ? Math.min(100, Math.round(t.countedExpected / t.expected * 100)) : 0;
+        var progressText = t.expected
+          ? t.countedExpected + ' / ' + t.expected + ' pallets (' + pct + '%)'
+          : (t.counted ? t.counted + ' counted · no pallet list yet' : 'Waiting for the counter to pull inventory');
+        var open = t.status === 'Open' || t.status === 'In Progress';
+        return '<div class="task">' +
+          '<div><div class="title"><span class="mono">' + esc(t.customerNo) + '</span> <span class="muted" style="font-weight:600">' + esc(t.customerName) + '</span></div>' +
+            '<div class="small muted">' + esc(t.warehouseId) + ' · ' + esc(t.taskId) + (t.locations ? ' · ' + esc(t.locations) : '') + '</div>' +
+            '<div class="small" style="margin-top:4px">' + statusBadge(t) + ' <span class="muted">' +
+              (t.assignedTo ? 'Assigned to <b>' + esc(t.assignedTo) + '</b>' : 'Unassigned') +
+              (t.counters && t.counters.length ? ' · counted by ' + esc(t.counters.join(', ')) : '') +
+              ' · ' + esc(t.source || '') + '</span></div></div>' +
+          '<div><div class="bar"><div style="width:' + pct + '%"></div></div>' +
+            '<div class="small" style="margin-top:6px">' + progressText + '</div>' +
+            '<div class="small muted">' +
+              (t.variances ? '<span class="neg">' + t.variances + ' variance' + (t.variances > 1 ? 's' : '') + '</span> · net ' + signed(t.netUnits) + ' units · ' : '') +
+              (t.extra ? t.extra + ' not on list · ' : '') +
+              'last count ' + ago(t.lastActivity) + '</div></div>' +
+          '<div class="actions">' +
+            (open ? '<button class="tiny" data-act="reassign" data-id="' + esc(t.taskId) + '">Reassign</button>' +
+                    '<button class="tiny" data-act="Completed" data-id="' + esc(t.taskId) + '">Complete</button>' +
+                    '<button class="tiny" data-act="Cancelled" data-id="' + esc(t.taskId) + '">Cancel</button>'
+                  : '<button class="tiny" data-act="Open" data-id="' + esc(t.taskId) + '">Reopen</button>') +
+          '</div>' +
+          '<div class="reassign-row hidden" data-row="' + esc(t.taskId) + '" style="grid-column:1/-1">' +
+            '<div class="toolbar"><input type="text" placeholder="Counter WMS username (blank = anyone)" value="' + esc(t.assignedTo) + '" />' +
+            '<button class="tiny primary" data-act="save-assign" data-id="' + esc(t.taskId) + '">Save</button></div></div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function renderCounters(list) {
+      $('counters-count').textContent = '(' + list.length + ')';
+      $('counters').innerHTML = list.length ? list.map(function (c) {
+        var m = minutesSince(c.lastActivity);
+        var color = m <= 5 ? 'var(--ok)' : m <= STALL_MIN ? 'var(--warn)' : '#475569';
+        return '<tr><td><span class="dot" style="background:' + color + '"></span>' + esc(c.name) + '</td>' +
+          '<td class="small">' + esc(c.warehouseId) + (c.customerNo ? ' · <span class="mono">' + esc(c.customerNo) + '</span>' : '') +
+          (c.taskId ? '<div class="muted">' + esc(c.taskId) + '</div>' : '<div class="muted">no task</div>') + '</td>' +
+          '<td class="num">' + c.countsToday + '</td><td class="small">' + ago(c.lastActivity) + '</td></tr>';
+      }).join('') : '<tr><td colspan="4" class="empty">No counts yet.</td></tr>';
+    }
+
+    function renderVariances(list) {
+      $('var-count').textContent = '(' + list.length + ')';
+      $('variances').innerHTML = list.length ? list.map(function (v) {
+        var locMismatch = v.actualLocation && v.sysLocation && v.actualLocation !== v.sysLocation;
+        return '<tr><td class="small">' + clock(v.ts) + '<div class="muted">' + ago(v.ts) + '</div></td>' +
+          '<td>' + esc(v.warehouseId) + '</td><td class="mono small">' + esc(v.customerNo) + '</td>' +
+          '<td class="mono">' + esc(v.lpn) + '</td><td class="small"><span class="mono">' + esc(v.itemId) + '</span><div class="muted">' + esc(v.itemName) + '</div></td>' +
+          '<td class="num">' + v.sysActual + '</td><td class="num">' + v.counted + '</td>' +
+          '<td class="num ' + (v.variance > 0 ? 'pos' : v.variance < 0 ? 'neg' : '') + '"><b>' + signed(v.variance) + '</b></td>' +
+          '<td class="small mono">' + (locMismatch ? esc(v.sysLocation) + ' → <b>' + esc(v.actualLocation) + '</b>' : esc(v.sysLocation)) + '</td>' +
+          '<td>' + esc(v.auditor) + '</td><td class="small">' + esc([v.reason, v.notes].filter(Boolean).join(' · ')) + '</td></tr>';
+      }).join('') : '<tr><td colspan="11" class="empty">No variances.</td></tr>';
+    }
+
+    function renderDups(list) {
+      $('dup-count').textContent = '(' + list.length + ')';
+      $('dups').innerHTML = list.length ? list.map(function (d) {
+        return '<tr><td class="mono">' + esc(d.lpn) + '</td><td>' + esc(d.warehouseId) + '</td><td>' + esc(d.auditors.join(', ')) + '</td>' +
+          '<td class="small mono">' + esc(d.tasks.join(', ')) + '</td>' +
+          '<td class="small">' + d.counts.map(function (c) { return esc(c.auditor) + ': ' + c.counted; }).join('<br>') + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="empty">None.</td></tr>';
+    }
+
+    function renderRecent(list) {
+      $('recent').innerHTML = list.length ? list.slice(0, 25).map(function (r) {
+        return '<tr><td class="small">' + clock(r.ts) + '</td><td>' + esc(r.auditor) + '</td>' +
+          '<td class="small"><span class="mono">' + esc(r.lpn) + '</span><div class="muted">' + esc(r.customerNo || r.warehouseId) + '</div></td>' +
+          '<td class="num ' + (r.variance > 0 ? 'pos' : r.variance < 0 ? 'neg' : '') + '">' + signed(r.variance) + '</td></tr>';
+      }).join('') : '<tr><td colspan="4" class="empty">No counts yet.</td></tr>';
+    }
+
+    // ---------------------------------------------------------------- task actions
+    function updateTask(taskId, changes, btn) {
+      if (btn) btn.disabled = true;
+      var payload = { code: mon.code, taskId: taskId };
+      Object.keys(changes).forEach(function (k) { payload[k] = changes[k]; });
+      return server('monitorUpdateTask', payload).then(function (res) {
+        if (!res || !res.ok) {
+          if (res && res.authError) { store(CODE_KEY, null); mon.code = ''; showGate(res.error); return; }
+          alertLine('Could not update task: ' + (res && res.error));
+          return;
+        }
+        refresh();
+      }).catch(function (err) { alertLine('Could not update task: ' + err.message); })
+        .then(function () { if (btn) btn.disabled = false; });
+    }
+    function alertLine(msg) { $('status-line').textContent = msg; }
+
+    function onTaskClick(e) {
+      var btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      var act = btn.getAttribute('data-act');
+      if (act === 'reassign') {
+        var row = document.querySelector('[data-row="' + CSS.escape(id) + '"]');
+        if (row) row.classList.toggle('hidden');
+        return;
+      }
+      if (act === 'save-assign') {
+        var input = btn.parentNode.querySelector('input');
+        updateTask(id, { assignedTo: input ? input.value.trim() : '' }, btn);
+        return;
+      }
+      // Status buttons need a second tap to confirm.
+      if (!btn.dataset.armed) {
+        btn.dataset.armed = '1';
+        btn.dataset.label = btn.textContent;
+        btn.textContent = 'Tap again';
+        setTimeout(function () { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = btn.dataset.label; } }, 4000);
+        return;
+      }
+      updateTask(id, { status: act }, btn);
+    }
+
+    function openAssign() {
+      $('assign-msg').classList.add('hidden');
+      if ($('f-wh').value) $('as-wh').value = $('f-wh').value;
+      $('assign').classList.remove('hidden');
+      $('as-customer').focus();
+    }
+
+    function submitAssign(e) {
+      e.preventDefault();
+      var msg = $('assign-msg');
+      var customerNo = $('as-customer').value.trim().toUpperCase();
+      if (!customerNo) { msg.className = 'msg err'; msg.textContent = 'Customer No. is required.'; return; }
+      $('assign-save').disabled = true;
+      server('monitorCreateTask', {
+        code: mon.code, warehouseId: $('as-wh').value, customerNo: customerNo,
+        customerName: $('as-name').value.trim(), locations: $('as-locations').value.trim(),
+        assignedTo: $('as-counter').value.trim(), notes: $('as-notes').value.trim()
+      }).then(function (res) {
+        if (!res || !res.ok) {
+          if (res && res.authError) { $('assign').classList.add('hidden'); store(CODE_KEY, null); mon.code = ''; showGate(res.error); return; }
+          msg.className = 'msg err'; msg.textContent = (res && res.error) || 'Could not create task.';
+          return;
+        }
+        msg.className = 'msg ok';
+        msg.textContent = 'Task ' + res.task.taskId + ' created for ' + customerNo +
+          (res.task.assignedTo ? ' and assigned to ' + res.task.assignedTo : ' (any counter can pick it)') + '.';
+        ['as-customer', 'as-name', 'as-locations', 'as-counter', 'as-notes'].forEach(function (id) { $(id).value = ''; });
+        refresh();
+      }).catch(function (err) {
+        msg.className = 'msg err'; msg.textContent = err.message;
+      }).then(function () { $('assign-save').disabled = false; });
+    }
+
+    // ---------------------------------------------------------------- start
+    // Apps Script writes this page into its frame after DOMContentLoaded may have fired.
+    function onReady(fn) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
+      else fn();
+    }
+
+    onReady(function () {
+      $('gate-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var code = $('gate-code').value.trim();
+        if (!code) return;
+        unlock(code, $('gate-remember').checked);
+      });
+      $('refresh-btn').addEventListener('click', refresh);
+      $('f-wh').addEventListener('change', function () { if (mon.data) render(mon.data); });
+      $('f-closed').addEventListener('change', function () { if (mon.data) render(mon.data); });
+      $('f-auto').addEventListener('change', function () { startTimer(); if (mon.data) render(mon.data); });
+      $('lock-btn').addEventListener('click', function () { store(CODE_KEY, null); mon.code = ''; mon.data = null; showGate(''); });
+      $('tasks').addEventListener('click', onTaskClick);
+      $('assign-btn').addEventListener('click', openAssign);
+      $('assign-cancel').addEventListener('click', function () { $('assign').classList.add('hidden'); });
+      $('assign-form').addEventListener('submit', submitAssign);
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+
+      var saved = load(CODE_KEY);
+      if (saved) unlock(saved, true);
+      else showGate('');
+    });
+  </script>
+</body>
+</html>

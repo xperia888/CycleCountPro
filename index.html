@@ -6,7 +6,7 @@
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.7';
+    window.CCP_BUILD = '2026-11-22.9';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -192,6 +192,14 @@
 
   <!-- Main Workspace -->
   <main class="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-6 py-2 sm:py-4 space-y-2.5 sm:space-y-3 no-print">
+
+    <!-- COUNT TASK BAR: which customer / task this device is counting -->
+    <div id="task-bar" class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 rounded-2xl px-3 py-2 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Task</span>
+      <span id="task-bar-label" class="text-xs font-semibold flex-1 min-w-0 truncate">No task selected</span>
+      <span id="task-bar-progress" class="hidden text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"></span>
+      <button id="open-task-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white min-h-[34px]">Pick task</button>
+    </div>
 
     <!-- FIRST SECTION (TC56 PDA One-Screen Ergonomics): Scanner Console & Physical Count Workspace -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 items-start">
@@ -559,7 +567,72 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.7</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.9</span></div>
+
+  <!-- ======================================================================= -->
+  <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
+  <!-- ======================================================================= -->
+  <div id="task-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+      <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+        <div>
+          <h3 id="task-modal-title" class="text-base font-bold">Count Tasks</h3>
+          <p id="task-modal-sub" class="text-[11px] text-slate-500"></p>
+        </div>
+        <button type="button" data-close-modal="task-modal" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4 space-y-4 overflow-y-auto">
+        <div id="task-current-box" class="hidden p-3 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 space-y-2">
+          <div class="text-[11px] font-bold uppercase text-indigo-600 dark:text-indigo-300">Current task</div>
+          <div id="task-current-text" class="text-sm font-semibold"></div>
+          <div class="flex flex-wrap gap-2">
+            <button id="task-pull-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[34px]">Pull this customer from WMS</button>
+            <button id="task-complete-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white min-h-[34px]">Mark task complete</button>
+            <button id="task-leave-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 min-h-[34px]">Stop working on task</button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold">Tasks for you in <span id="task-wh-label" class="font-mono"></span></span>
+            <button id="task-refresh-btn" type="button" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Refresh</button>
+          </div>
+          <div id="task-list" class="space-y-2 text-xs"></div>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <div class="text-xs font-bold">Or start your own task</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input id="task-new-customer-no" type="text" placeholder="Customer No. (e.g. ONUS-001)" class="px-2.5 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            <input id="task-new-customer-name" type="text" placeholder="Customer name (optional)" class="px-2.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            <input id="task-new-locations" type="text" placeholder="Locations (optional, comma separated)" class="sm:col-span-2 px-2.5 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+          </div>
+          <button id="task-create-btn" type="button" class="w-full px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white min-h-[38px]">Create &amp; start task</button>
+        </div>
+        <div id="task-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium border"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- BACKUP PROMPT: shown before new data is loaded over existing data          -->
+  <!-- ======================================================================= -->
+  <div id="backup-prompt-modal" class="fixed inset-0 z-[60] hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="backup-prompt-title">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 id="backup-prompt-title" class="text-base font-bold">Back up current data first?</h3>
+      </div>
+      <div class="px-5 py-4 space-y-2 text-sm">
+        <p id="backup-prompt-summary"></p>
+        <p id="backup-prompt-sync" class="text-xs"></p>
+      </div>
+      <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-2 sm:justify-end">
+        <button id="backup-prompt-cancel" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 min-h-[40px]">Cancel</button>
+        <button id="backup-prompt-skip" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white min-h-[40px]">Continue without backup</button>
+        <button id="backup-prompt-export" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[40px]">Export backup &amp; continue</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
@@ -940,6 +1013,7 @@
       queryItemCodes: [],
       googleSheetUrl: DEFAULT_GOOGLE_SHEET_URL,
       googleSheetAutoSync: true,
+      activeTaskByWarehouse: {},
       pendingSyncQueue: [],
       lastCloudSyncAt: ''
     };
@@ -1210,6 +1284,17 @@
         }
         authSession.selectedWarehouse = state.activeWarehouse;
 
+        // Shared device: drop tasks assigned to someone else (their data stays saved).
+        const mine = counterNames().map(n => n.toLowerCase());
+        Object.keys(state.activeTaskByWarehouse).forEach(wh => {
+          const assigned = String(state.activeTaskByWarehouse[wh]?.assignedTo || '').toLowerCase();
+          if (assigned && !mine.includes(assigned)) {
+            if (wh === state.activeWarehouse) TaskService.activate(null);
+            else delete state.activeTaskByWarehouse[wh];
+          }
+        });
+        saveState();
+
         resetIdleTimer();
         renderAll();
         return result;
@@ -1303,9 +1388,22 @@
       return SAMPLE_STOCK_BY_INVENTORY.map(r => ({ ...r, 'Warehouse ID': state.activeWarehouse }));
     }
 
-    function getWarehouseStorageKey(whId) {
-      const cleanWh = String(whId || state.activeWarehouse || DEFAULT_WAREHOUSE).trim().replace(/[^\w-]/g, '_');
-      return `${STORAGE_KEY_PREFIX}${cleanWh}_v2`;
+    // Each warehouse + task has its own saved data. With no task selected the
+    // warehouse's own bucket is used (same key as before tasks existed).
+    function getWarehouseStorageKey(whId, taskId) {
+      const wh = whId || state.activeWarehouse || DEFAULT_WAREHOUSE;
+      const cleanWh = String(wh).trim().replace(/[^\w-]/g, '_');
+      const task = taskId === undefined ? getActiveTask(wh)?.taskId : taskId;
+      const cleanTask = task ? `__${String(task).replace(/[^\w-]/g, '_')}` : '';
+      return `${STORAGE_KEY_PREFIX}${cleanWh}${cleanTask}_v2`;
+    }
+
+    function getActiveTask(whId) {
+      return state.activeTaskByWarehouse[whId || state.activeWarehouse] || null;
+    }
+
+    function counterNames() {
+      return [authSession.username, authSession.displayName].filter(Boolean);
     }
 
     function resetIdleTimer() {
@@ -1324,7 +1422,8 @@
           warehouses: state.warehouses,
           soundEnabled: state.soundEnabled,
           googleSheetUrl: state.googleSheetUrl,
-          googleSheetAutoSync: state.googleSheetAutoSync
+          googleSheetAutoSync: state.googleSheetAutoSync,
+          activeTaskByWarehouse: state.activeTaskByWarehouse
         }));
         localStorage.setItem(getWarehouseStorageKey(state.activeWarehouse), JSON.stringify({
           items: state.items,
@@ -1372,6 +1471,9 @@
             state.googleSheetUrl = DEFAULT_GOOGLE_SHEET_URL;
           }
           if (typeof prefs.googleSheetAutoSync === 'boolean') state.googleSheetAutoSync = prefs.googleSheetAutoSync;
+          if (prefs.activeTaskByWarehouse && typeof prefs.activeTaskByWarehouse === 'object') {
+            state.activeTaskByWarehouse = prefs.activeTaskByWarehouse;
+          }
         }
         if (loadWarehouseBucket(state.activeWarehouse) && state.items.length > 0) {
           return true;
@@ -1462,7 +1564,10 @@
           actualQty: item.actualQty ?? 0,
           status: (item.actualQty - (item.sysActualQty || 0)) === 0 && (item.actualLocation || item.sysLocation) === item.sysLocation ? 'Matched' : 'Variance',
           reasonCode: item.reasonCode || '',
-          notes: item.notes || ''
+          notes: item.notes || '',
+          taskId: getActiveTask()?.taskId || '',
+          customerNo: item.customerNo || getActiveTask()?.customerNo || '',
+          customerName: item.customerName || getActiveTask()?.customerName || ''
         };
         state.pendingSyncQueue.push(record);
         saveState();
@@ -1525,9 +1630,17 @@
       // Counts queued in a warehouse that is not currently open still get synced,
       // straight from that warehouse's own saved data.
       async flushOtherWarehouses(targetUrl) {
-        for (const whId of WAREHOUSES) {
-          if (whId === state.activeWarehouse) continue;
-          const key = getWarehouseStorageKey(whId);
+        // Every saved bucket (other warehouses and other tasks) except the open one.
+        const activeKey = getWarehouseStorageKey(state.activeWarehouse);
+        const keys = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(STORAGE_KEY_PREFIX) && k !== activeKey) keys.push(k);
+          }
+        } catch (e) { return; }
+        for (const key of keys) {
+          const whId = normalizeWarehouseId(key.slice(STORAGE_KEY_PREFIX.length).split('__')[0].replace(/_v2$/, '')) || '';
           let bucket;
           try { bucket = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { bucket = null; }
           const queue = Array.isArray(bucket?.pendingSyncQueue) ? bucket.pendingSyncQueue : [];
@@ -1535,8 +1648,8 @@
           queue.forEach(r => { if (!r.recordId) r.recordId = newRecordId(); r.warehouseId = r.warehouseId || whId; });
           try {
             const saved = new Set(await this.sendBatch(targetUrl, queue));
-            // Re-read in case the user switched into this warehouse meanwhile.
-            if (whId === state.activeWarehouse) {
+            // Re-read in case the user switched into this bucket meanwhile.
+            if (key === getWarehouseStorageKey(state.activeWarehouse)) {
               state.pendingSyncQueue = state.pendingSyncQueue.filter(r => !saved.has(r.recordId));
               saveState();
             } else {
@@ -1603,6 +1716,232 @@
     };
 
     // -------------------------------------------------------------------------
+    // COUNT TASKS (assigned by a supervisor, or created by the counter)
+    // -------------------------------------------------------------------------
+    // Calls a server function in Code.gs: directly when hosted by Apps Script,
+    // otherwise through the Web App's JSON endpoint.
+    async function callServer(fnName, payload) {
+      if (IS_APPS_SCRIPT_HOSTED) return callAppsScript(fnName, payload);
+      const url = GoogleSheetCloudSync.getEffectiveUrl();
+      const res = await fetch(url, {
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: fnName, payload })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    const TaskService = {
+      tasks: [],
+
+      feedback(msg, kind = 'info') {
+        const fb = document.getElementById('task-feedback');
+        if (!fb) return;
+        if (!msg) { fb.classList.add('hidden'); return; }
+        const tone = kind === 'error'
+          ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300'
+          : kind === 'success'
+            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+            : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300';
+        fb.className = `p-2.5 rounded-xl text-xs font-medium border ${tone}`;
+        fb.textContent = msg;
+      },
+
+      requireSignIn() {
+        if (authSession.token) return true;
+        this.feedback('Sign in to WMS first (API button) so tasks can be matched to you.', 'error');
+        return false;
+      },
+
+      describe(t) {
+        return `${t.customerNo}${t.customerName ? ' · ' + t.customerName : ''}${t.locations ? ' · ' + t.locations : ''}`;
+      },
+
+      async open() {
+        openModal('task-modal');
+        this.feedback('');
+        this.renderModal();
+        await this.load();
+      },
+
+      async load() {
+        const list = document.getElementById('task-list');
+        if (!this.requireSignIn()) { if (list) list.innerHTML = ''; return; }
+        if (list) list.innerHTML = '<div class="text-slate-400">Loading tasks...</div>';
+        try {
+          const res = await callServer('listTasks', { warehouseId: state.activeWarehouse, counter: counterNames() });
+          if (!res?.ok) throw new Error(res?.error || 'Could not load tasks');
+          this.tasks = res.tasks || [];
+          this.renderModal();
+        } catch (err) {
+          if (list) list.innerHTML = '';
+          this.feedback(`Could not load tasks: ${err.message}`, 'error');
+        }
+      },
+
+      renderModal() {
+        const active = getActiveTask();
+        const whLabel = document.getElementById('task-wh-label');
+        if (whLabel) whLabel.textContent = state.activeWarehouse;
+        const sub = document.getElementById('task-modal-sub');
+        if (sub) sub.textContent = authSession.token
+          ? `Signed in as ${authSession.displayName || authSession.username}`
+          : 'Not signed in to WMS';
+        const box = document.getElementById('task-current-box');
+        box?.classList.toggle('hidden', !active);
+        if (active) document.getElementById('task-current-text').textContent = `${this.describe(active)} (${active.taskId})`;
+        const completeBtn = document.getElementById('task-complete-btn');
+        if (completeBtn) { completeBtn.dataset.armed = ''; completeBtn.textContent = 'Mark task complete'; }
+
+        const list = document.getElementById('task-list');
+        if (!list || !authSession.token) return;
+        if (!this.tasks.length) {
+          list.innerHTML = '<div class="text-slate-400">No open tasks assigned to you or unassigned in this warehouse.</div>';
+          return;
+        }
+        list.innerHTML = this.tasks.map(t => {
+          const isActive = active && active.taskId === t.taskId;
+          const who = t.assignedTo ? `Assigned to ${escapeHtml(t.assignedTo)}` : 'Unassigned';
+          return `
+            <div class="flex items-center gap-2 p-2.5 rounded-xl border ${isActive ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' : 'border-slate-200 dark:border-slate-800'}">
+              <div class="min-w-0 flex-1">
+                <div class="font-bold font-mono">${escapeHtml(t.customerNo)} <span class="font-sans font-normal text-slate-500">${escapeHtml(t.customerName || '')}</span></div>
+                <div class="text-[11px] text-slate-500">${escapeHtml(t.taskId)} · ${who} · ${escapeHtml(t.status)}${t.locations ? ' · ' + escapeHtml(t.locations) : ''}${t.source ? ' · by ' + escapeHtml(t.source) : ''}</div>
+              </div>
+              <button type="button" data-start-task="${escapeHtml(t.taskId)}" class="px-3 py-1.5 rounded-xl text-xs font-bold ${isActive ? 'bg-slate-200 dark:bg-slate-700' : 'bg-indigo-600 hover:bg-indigo-700 text-white'} min-h-[34px]">${isActive ? 'Current' : 'Start'}</button>
+            </div>`;
+        }).join('');
+      },
+
+      // Switches this device to the task's own data and pre-fills the WMS filters.
+      activate(task) {
+        saveState();
+        if (task) {
+          state.activeTaskByWarehouse[state.activeWarehouse] = {
+            taskId: task.taskId, warehouseId: task.warehouseId || state.activeWarehouse,
+            customerNo: task.customerNo, customerName: task.customerName || '',
+            locations: task.locations || '', assignedTo: task.assignedTo || ''
+          };
+        } else {
+          delete state.activeTaskByWarehouse[state.activeWarehouse];
+        }
+        loadWarehouseBucket(state.activeWarehouse);
+        if (task && !state.items.length) state.sourceLabel = `${task.customerNo} (Task ${task.taskId}: pull from WMS)`;
+        const ownerInp = document.getElementById('flt-owner-no');
+        if (ownerInp && task) ownerInp.value = task.customerNo;
+        state.queryLocationIds = task?.locations
+          ? WmsInventoryApiService.parseMultiTokens(task.locations, [])
+          : [];
+        saveState();
+        document.getElementById('comparison-active-panel')?.classList.add('hidden');
+        document.getElementById('comparison-empty-state')?.classList.remove('hidden');
+        renderAll();
+        if (typeof renderMultiQueryChips === 'function') renderMultiQueryChips();
+      },
+
+      async start(taskId) {
+        if (!this.requireSignIn()) return;
+        const task = this.tasks.find(t => t.taskId === taskId);
+        if (!task) return;
+        this.activate(task);
+        this.renderModal();
+        this.feedback(state.items.length
+          ? `Continuing ${task.customerNo}. ${state.items.length} pallets loaded on this device.`
+          : `Started ${task.customerNo}. Next: pull this customer from WMS.`, 'success');
+      },
+
+      async create() {
+        if (!this.requireSignIn()) return;
+        const customerNo = (document.getElementById('task-new-customer-no')?.value || '').trim().toUpperCase();
+        const customerName = (document.getElementById('task-new-customer-name')?.value || '').trim();
+        const locations = (document.getElementById('task-new-locations')?.value || '').trim();
+        if (!customerNo) { this.feedback('Enter the customer number (e.g. ONUS-001).', 'error'); return; }
+        const btn = document.getElementById('task-create-btn');
+        if (btn) btn.disabled = true;
+        try {
+          const res = await callServer('createTask', {
+            warehouseId: state.activeWarehouse, customerNo, customerName, locations,
+            counter: authSession.username || authSession.displayName
+          });
+          if (!res?.ok) throw new Error(res?.error || 'Could not create task');
+          this.tasks = [res.task, ...this.tasks];
+          this.activate(res.task);
+          ['task-new-customer-no', 'task-new-customer-name', 'task-new-locations'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.value = '';
+          });
+          this.renderModal();
+          this.feedback(`Task ${res.task.taskId} created for ${customerNo}. Next: pull this customer from WMS.`, 'success');
+        } catch (err) {
+          this.feedback(`Could not create task: ${err.message}`, 'error');
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      },
+
+      // Sends the pallets this task should cover, so the monitor can show progress.
+      async uploadExpected() {
+        const task = getActiveTask();
+        if (!task || !state.items.length) return;
+        try {
+          const res = await callServer('startTask', {
+            taskId: task.taskId,
+            counter: authSession.username || authSession.displayName,
+            items: state.items.map(i => ({
+              lpn: i.lpn, itemId: i.itemId, itemName: i.itemName, sysLocation: i.sysLocation,
+              sysActualQty: i.sysActualQty, customerNo: i.customerNo
+            }))
+          });
+          if (!res?.ok) throw new Error(res?.error || 'upload failed');
+          showToast(`Task ${task.taskId}: ${state.items.length} expected pallets shared with the monitor.`, 'info');
+        } catch (err) {
+          showToast(`Could not share the task's pallet list with the monitor (${err.message}). Counts still sync.`, 'warn');
+        }
+      },
+
+      async complete() {
+        const task = getActiveTask();
+        const btn = document.getElementById('task-complete-btn');
+        if (!task || !btn) return;
+        if (!btn.dataset.armed) {
+          const pending = state.items.filter(i => !i.counted).length;
+          btn.dataset.armed = '1';
+          btn.textContent = pending ? `${pending} pallets not counted. Tap again to complete` : 'Tap again to confirm';
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const res = await callServer('completeTask', { taskId: task.taskId });
+          if (!res?.ok) throw new Error(res?.error || 'Could not complete task');
+          this.activate(null);
+          this.tasks = this.tasks.filter(t => t.taskId !== task.taskId);
+          this.renderModal();
+          this.feedback(`Task ${task.taskId} marked complete.`, 'success');
+        } catch (err) {
+          this.feedback(`Could not complete task: ${err.message}`, 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      },
+
+      renderBar() {
+        const task = getActiveTask();
+        const label = document.getElementById('task-bar-label');
+        const prog = document.getElementById('task-bar-progress');
+        const btn = document.getElementById('open-task-btn');
+        if (label) label.textContent = task ? `${this.describe(task)} · ${task.taskId}` : 'No task selected (counts are saved without a task)';
+        if (btn) btn.textContent = task ? 'Task options' : 'Pick task';
+        if (prog) {
+          const total = state.items.length;
+          const done = state.items.filter(i => i.counted).length;
+          prog.classList.toggle('hidden', !task || !total);
+          prog.textContent = `${done}/${total} counted`;
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
     // WMS INVENTORY API SERVICE (PAGINATED + PARALLEL FETCHING)
     // -------------------------------------------------------------------------
     const WmsInventoryApiService = {
@@ -1629,7 +1968,9 @@
         const poNo = (document.getElementById('flt-po-no')?.value || '').trim();
         const skuOp = document.getElementById('flt-sku-op')?.value || 'contains';
 
-        if (ownerNo) filterModel.owner_no = { filterType: 'text', type: 'contains', filter: ownerNo };
+        const taskCustomer = getActiveTask()?.customerNo;
+        if (taskCustomer) filterModel.owner_no = { filterType: 'text', type: 'equals', filter: taskCustomer };
+        else if (ownerNo) filterModel.owner_no = { filterType: 'text', type: 'contains', filter: ownerNo };
         if (inboundNo) filterModel.inbound_no = { filterType: 'text', type: inboundOp, filter: inboundNo };
         if (palletNo) filterModel.pallet_no = { filterType: 'text', type: palletOp, filter: palletNo };
         if (poNo) filterModel.po_no = { filterType: 'text', type: 'contains', filter: poNo };
@@ -1863,6 +2204,15 @@
       if (otherWh.size) {
         showToast(`Skipped rows for ${[...otherWh].join(', ')}. Switch to that warehouse to import them.`, 'warn');
       }
+      const task = getActiveTask();
+      if (task?.customerNo) {
+        const want = task.customerNo.trim().toUpperCase();
+        const before = newItems.length;
+        newItems = newItems.filter(item => !item.customerNo || item.customerNo.trim().toUpperCase() === want);
+        if (newItems.length < before) {
+          showToast(`Skipped ${before - newItems.length} rows for other customers (task is ${task.customerNo}).`, 'warn');
+        }
+      }
       if (!newItems.length) return 0;
       if (replace) {
         state.items = newItems;
@@ -1964,6 +2314,110 @@
 
     function closeModal(id) {
       document.getElementById(id)?.classList.add('hidden');
+    }
+
+    // Builds the Pallet_Detail + Item_Level_Summary workbook for the active warehouse
+    // and downloads it. Used by the report's Export .XLSX button and by backups.
+    function exportAuditWorkbook(fileName) {
+      const itemRows = buildItemLevelSummaryRows().map(r => ({
+        'Warehouse ID': state.activeWarehouse,
+        'Item ID': r.itemId,
+        'Item Description': r.itemName,
+        'Pallets Audited': r.palletsCounted,
+        'Pallets Total': r.palletsTotal,
+        'No-LP Pallets': r.noLpCount,
+        'Total Sys Actual': r.sysActual,
+        'Total Allocation': r.sysAlloc,
+        'Total Remaining': r.sysRem,
+        'Total Counted': r.physCounted,
+        'Net Diff (vs Sys)': r.varianceVsSys,
+        'Observed Bays': r.locationsStr
+      }));
+
+      const palletRows = state.items.map(i => ({
+        'Warehouse ID': i.warehouseId || state.activeWarehouse,
+        'Pallet LP': i.lpn,
+        'Inbound ID': i.inboundNo || '',
+        'PO No': i.poNo || '',
+        'Sys Location': i.sysLocation,
+        'Actual Location': i.actualLocation || i.sysLocation,
+        'Item ID': i.itemId,
+        'Item Description': i.itemName,
+        'Sys Actual': i.sysActualQty,
+        'Allocation': i.sysAllocQty,
+        'Remaining': i.sysAvailQty,
+        'Counted': i.counted ? i.actualQty : '',
+        'Variance': i.counted ? (i.actualQty - i.sysActualQty) : '',
+        'Status': i.counted ? 'Audited' : 'Pending',
+        'Counted At': i.countedAt || '',
+        'Reason': i.reasonCode || '',
+        'Notes': i.notes || ''
+      }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(palletRows), 'Pallet_Detail');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemRows), 'Item_Level_Summary');
+      XLSX.writeFile(wb, fileName || `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}.xlsx`);
+    }
+
+    function backupFileName() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+      return `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}_backup_${stamp}.xlsx`;
+    }
+
+    // Before new data is loaded, offers to export the active warehouse's current data.
+    // Resolves true to go ahead, false if the user cancels. No prompt when there is
+    // nothing worth keeping (no rows, or the untouched built-in sample).
+    function confirmBackupBeforeNewData(actionLabel, willReplace = true) {
+      const total = state.items.length;
+      const counted = state.items.filter(i => i.counted).length;
+      const untouchedSample = counted === 0 && /sample/i.test(state.sourceLabel || '');
+      if (!total || untouchedSample) return Promise.resolve(true);
+
+      const modal = document.getElementById('backup-prompt-modal');
+      if (!modal) return Promise.resolve(true);
+      const pending = state.pendingSyncQueue.length;
+      document.getElementById('backup-prompt-summary').textContent =
+        `${state.activeWarehouse} has ${total} pallet${total === 1 ? '' : 's'} on this device, `
+        + `${counted} counted. ${actionLabel} will ${willReplace ? 'replace' : 'add to'} this data. `
+        + 'Export a backup (.xlsx) first?';
+      const syncLine = document.getElementById('backup-prompt-sync');
+      syncLine.textContent = pending
+        ? `${pending} count${pending === 1 ? ' has' : 's have'} not reached the Google Sheet yet. ${pending === 1 ? 'It stays' : 'They stay'} queued and will still sync.`
+        : (counted ? 'All counts so far are already saved in the Google Sheet.' : '');
+      syncLine.className = `text-xs ${pending ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-500'}`;
+
+      return new Promise(resolve => {
+        const buttons = {
+          export: document.getElementById('backup-prompt-export'),
+          skip: document.getElementById('backup-prompt-skip'),
+          cancel: document.getElementById('backup-prompt-cancel')
+        };
+        const finish = (choice) => {
+          Object.values(buttons).forEach(b => { b.onclick = null; });
+          modal.classList.add('hidden');
+          if (choice === 'export') {
+            try {
+              const name = backupFileName();
+              exportAuditWorkbook(name);
+              showToast(`Backup exported: ${name}`, 'success');
+            } catch (err) {
+              // Don't load new data if the backup failed: the user asked to keep a copy.
+              showToast(`Backup failed (${err.message}). Nothing was changed.`, 'error');
+              resolve(false);
+              return;
+            }
+          }
+          resolve(choice !== 'cancel');
+        };
+        buttons.export.onclick = () => finish('export');
+        buttons.skip.onclick = () => finish('skip');
+        buttons.cancel.onclick = () => finish('cancel');
+        modal.classList.remove('hidden');
+        buttons.export.focus();
+      });
     }
 
     // -------------------------------------------------------------------------
@@ -2347,6 +2801,7 @@
     }
 
     function renderAll() {
+      TaskService.renderBar();
       renderHeaderAndKPIs();
       renderQuickLpChips();
       renderLedgerTable();
@@ -2399,6 +2854,25 @@
       };
       document.getElementById('header-wh-select')?.addEventListener('change', (e) => switchWarehouse(e.target.value));
       document.getElementById('wms-login-wh-select')?.addEventListener('change', (e) => switchWarehouse(e.target.value));
+
+      // Count tasks
+      document.getElementById('open-task-btn')?.addEventListener('click', () => TaskService.open());
+      document.getElementById('task-refresh-btn')?.addEventListener('click', () => TaskService.load());
+      document.getElementById('task-create-btn')?.addEventListener('click', () => TaskService.create());
+      document.getElementById('task-complete-btn')?.addEventListener('click', () => TaskService.complete());
+      document.getElementById('task-leave-btn')?.addEventListener('click', () => {
+        TaskService.activate(null);
+        TaskService.renderModal();
+        TaskService.feedback('Stopped working on the task. Its data stays saved on this device.', 'info');
+      });
+      document.getElementById('task-pull-btn')?.addEventListener('click', () => {
+        closeModal('task-modal');
+        openModal('wms-modal');
+      });
+      document.getElementById('task-list')?.addEventListener('click', (e) => {
+        const id = e.target.closest('[data-start-task]')?.getAttribute('data-start-task');
+        if (id) TaskService.start(id);
+      });
 
       // Top Toolbar Buttons
       document.getElementById('open-import-btn')?.addEventListener('click', () => openModal('import-modal'));
@@ -2947,6 +3421,8 @@
           showToast('Please sign in to WMS in Step 1 first.', 'warn');
           return;
         }
+        const replaceMode = (document.getElementById('wms-sync-mode')?.value || 'REPLACE') === 'REPLACE';
+        if (!(await confirmBackupBeforeNewData('This WMS pull', replaceMode))) return;
 
         const fetchBtn = document.getElementById('wms-live-fetch-btn');
         const stopBtn = document.getElementById('wms-stop-fetch-btn');
@@ -2993,6 +3469,7 @@
           if (statusEl) statusEl.textContent = `Imported ${kept} pallets`;
           showToast(`Imported ${kept} pallet records from WMS (${whId}).`, 'success');
           closeModal('wms-modal');
+          TaskService.uploadExpected();
         } catch (err) {
           if (err.name === 'AbortError') {
             if (statusEl) statusEl.textContent = 'Query stopped by user';
@@ -3017,6 +3494,10 @@
       document.getElementById('file-upload-input')?.addEventListener('change', async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        if (!(await confirmBackupBeforeNewData(`Importing ${file.name}`))) {
+          e.target.value = '';
+          return;
+        }
         try {
           let rows = [];
           if (file.name.toLowerCase().endsWith('.json')) {
@@ -3038,6 +3519,7 @@
           if (!kept) return;
           closeModal('import-modal');
           showToast(`Loaded ${kept} rows for ${state.activeWarehouse} from ${file.name}`, 'success');
+          TaskService.uploadExpected();
         } catch (err) {
           showToast(`Failed to parse file: ${err.message}`, 'error');
         } finally {
@@ -3051,7 +3533,8 @@
         XLSX.writeFile(wb, 'stock_by_inventory_template.xls');
       });
 
-      document.getElementById('restore-sample-btn')?.addEventListener('click', () => {
+      document.getElementById('restore-sample-btn')?.addEventListener('click', async () => {
+        if (!(await confirmBackupBeforeNewData('Loading the sample data'))) return;
         applyImportedItems(normalizeRowsToItems(sampleRowsForActiveWarehouse()), 'stock_by_inventory Sample', true);
         closeModal('import-modal');
         showToast('Restored built-in sample inventory.', 'info');
@@ -3072,46 +3555,7 @@
         renderFinalReport();
       });
 
-      document.getElementById('export-xlsx-btn')?.addEventListener('click', () => {
-        const itemRows = buildItemLevelSummaryRows().map(r => ({
-          'Warehouse ID': state.activeWarehouse,
-          'Item ID': r.itemId,
-          'Item Description': r.itemName,
-          'Pallets Audited': r.palletsCounted,
-          'Pallets Total': r.palletsTotal,
-          'No-LP Pallets': r.noLpCount,
-          'Total Sys Actual': r.sysActual,
-          'Total Allocation': r.sysAlloc,
-          'Total Remaining': r.sysRem,
-          'Total Counted': r.physCounted,
-          'Net Diff (vs Sys)': r.varianceVsSys,
-          'Observed Bays': r.locationsStr
-        }));
-
-        const palletRows = state.items.map(i => ({
-          'Warehouse ID': i.warehouseId || state.activeWarehouse,
-          'Pallet LP': i.lpn,
-          'Inbound ID': i.inboundNo || '',
-          'PO No': i.poNo || '',
-          'Sys Location': i.sysLocation,
-          'Actual Location': i.actualLocation || i.sysLocation,
-          'Item ID': i.itemId,
-          'Item Description': i.itemName,
-          'Sys Actual': i.sysActualQty,
-          'Allocation': i.sysAllocQty,
-          'Remaining': i.sysAvailQty,
-          'Counted': i.counted ? i.actualQty : '',
-          'Variance': i.counted ? (i.actualQty - i.sysActualQty) : '',
-          'Status': i.counted ? 'Audited' : 'Pending',
-          'Reason': i.reasonCode || '',
-          'Notes': i.notes || ''
-        }));
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(palletRows), 'Pallet_Detail');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemRows), 'Item_Level_Summary');
-        XLSX.writeFile(wb, `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}.xlsx`);
-      });
+      document.getElementById('export-xlsx-btn')?.addEventListener('click', () => exportAuditWorkbook());
 
       document.getElementById('export-csv-btn')?.addEventListener('click', () => {
         const rows = state.reportViewMode === 'ITEM'

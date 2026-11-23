@@ -1,35 +1,73 @@
 // CycleCount Pro v2 — Google Apps Script backend
 //
-// Setup:
-//   * Preferred: create this script from the target Google Sheet
-//     (Extensions -> Apps Script) so getActiveSpreadsheet() works.
-//   * Standalone script: set Script Property SPREADSHEET_ID to the Sheet's ID
-//     (Project Settings -> Script properties).
-//   * The HTML file in this project must be named "index" (matches index.html
-//     in the repo). "Index" is also accepted for older copies.
+// Setup (Project Settings -> Script properties):
+//   * SPREADSHEET_ID  only if this script was not created from the Sheet
+//                     (Extensions -> Apps Script); otherwise not needed.
+//   * MONITOR_CODE    access code for the manager monitor page (?view=monitor).
+//                     Use a long code; changing it signs out every monitor screen.
+// HTML files in the project: "index" (counter app) and "monitor" (monitor page).
 
 var HTML_FILE_NAMES = ['index', 'Index'];
+var MONITOR_FILE_NAMES = ['monitor', 'Monitor'];
 var MASTER_TAB = 'Master_Audit_Log';
+var TASK_TAB = 'Count_Tasks';
+var EXPECTED_TAB = 'Task_Expected';
+
 var HEADERS = [
   'Timestamp', 'Warehouse ID', 'Auditor', 'Pallet LP', 'Inbound ID', 'PO No',
   'Sys Location', 'Actual Location', 'Item ID', 'Item Description',
   'Sys Actual', 'Allocation', 'Remaining', 'Counted Qty', 'Variance',
-  'Status', 'Reason', 'Notes', 'Record ID'
+  'Status', 'Reason', 'Notes', 'Record ID', 'Task ID', 'Customer No', 'Customer Name'
 ];
-var RECORD_ID_COL = HEADERS.indexOf('Record ID') + 1;
+var COL = {};
+HEADERS.forEach(function(h, i) { COL[h] = i; });
+var RECORD_ID_COL = COL['Record ID'] + 1;
+
+var TASK_HEADERS = [
+  'Task ID', 'Warehouse ID', 'Customer No', 'Customer Name', 'Locations', 'Assigned To',
+  'Status', 'Source', 'Created At', 'Created By', 'Started At', 'Completed At',
+  'Expected Pallets', 'Notes'
+];
+var TCOL = {};
+TASK_HEADERS.forEach(function(h, i) { TCOL[h] = i; });
+
+var EXPECTED_HEADERS = [
+  'Task ID', 'Warehouse ID', 'Pallet LP', 'Item ID', 'Item Description', 'Sys Location',
+  'Sys Actual', 'Customer No', 'Uploaded At'
+];
+
+var OPEN_STATUSES = ['Open', 'In Progress'];
+
+// ---------------------------------------------------------------------------
+// Web app entry points
+// ---------------------------------------------------------------------------
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.health === '1') {
+  var params = (e && e.parameter) || {};
+  if (params.health === '1') {
     return jsonOutput_(getSyncHealth());
   }
 
-  return loadTemplate_()
+  var isMonitor = params.view === 'monitor';
+  return loadTemplate_(isMonitor ? MONITOR_FILE_NAMES : HTML_FILE_NAMES)
     .evaluate()
-    .setTitle('CycleCount Pro v2 — Warehouse Inventory Count & Audit')
+    .setTitle(isMonitor ? 'CycleCount Pro — Monitoring Center' : 'CycleCount Pro v2 — Warehouse Inventory Count & Audit')
     // ALLOWALL is kept so the app can be embedded in Google Sites.
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
 }
+
+// JSON API for clients that are not hosted by this script (fetch POST, text/plain body).
+var POST_ACTIONS = {
+  appendAuditRecords: function(p) { return appendAuditRecords(p); },
+  listTasks: function(p) { return listTasks(p); },
+  createTask: function(p) { return createTask(p); },
+  startTask: function(p) { return startTask(p); },
+  completeTask: function(p) { return completeTask(p); },
+  getMonitorData: function(p) { return getMonitorData(p); },
+  monitorCreateTask: function(p) { return monitorCreateTask(p); },
+  monitorUpdateTask: function(p) { return monitorUpdateTask(p); }
+};
 
 function doPost(e) {
   try {
@@ -39,15 +77,17 @@ function doPost(e) {
     if (payload.action === 'ping') {
       return jsonOutput_(getSyncHealth());
     }
-
+    if (payload.action && POST_ACTIONS[payload.action]) {
+      return jsonOutput_(POST_ACTIONS[payload.action](payload.payload || {}));
+    }
+    // Default (older clients): payload is an audit batch.
     return jsonOutput_(appendAuditRecords(payload));
   } catch (err) {
     return jsonOutput_({ ok: false, error: errorMessage_(err) });
   }
 }
 
-// Called from the page via google.script.run (when hosted by this script)
-// and from doGet/doPost. Confirms the target spreadsheet can be opened.
+// Confirms the target spreadsheet can be opened.
 function getSyncHealth() {
   try {
     var ss = getSpreadsheet_();
@@ -63,16 +103,15 @@ function getSyncHealth() {
   }
 }
 
-// Called from the page via google.script.run, or from doPost.
+// ---------------------------------------------------------------------------
+// Count records
+// ---------------------------------------------------------------------------
+
 // Records carrying a recordId that is already in the Master log are skipped,
 // so the client can safely retry a batch whose response it never received.
 function appendAuditRecords(payload) {
   payload = payload || {};
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(20000)) {
-    return { ok: false, error: 'Sheet is busy (lock timeout). The batch stays queued and will retry.' };
-  }
-  try {
+  return withLock_(function() {
     var records = Array.isArray(payload.records) ? payload.records : [payload];
     records = records.filter(function(r) { return r && typeof r === 'object'; });
     if (!records.length) {
@@ -80,7 +119,7 @@ function appendAuditRecords(payload) {
     }
 
     var ss = getSpreadsheet_();
-    var master = getOrCreateSheet_(ss, MASTER_TAB);
+    var master = getOrCreateSheet_(ss, MASTER_TAB, HEADERS);
     var existingIds = readExistingIds_(master);
 
     var rowsByTab = {};
@@ -97,7 +136,7 @@ function appendAuditRecords(payload) {
       if (recordId) existingIds[recordId] = true;
 
       var row = buildRow_(r, recordId);
-      var whTab = String(r.warehouseId || 'UNASSIGNED').replace(/[^\w-]/g, '_');
+      var whTab = safeTabName_(r.warehouseId || 'UNASSIGNED');
       [whTab, MASTER_TAB].forEach(function(tabName) {
         (rowsByTab[tabName] = rowsByTab[tabName] || []).push(row);
       });
@@ -105,18 +144,455 @@ function appendAuditRecords(payload) {
     });
 
     Object.keys(rowsByTab).forEach(function(tabName) {
-      var sheet = tabName === MASTER_TAB ? master : getOrCreateSheet_(ss, tabName);
+      var sheet = tabName === MASTER_TAB ? master : getOrCreateSheet_(ss, tabName, HEADERS);
       var rows = rowsByTab[tabName];
       sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS.length).setValues(rows);
     });
     SpreadsheetApp.flush();
+    clearMonitorCache_();
 
-    return {
-      ok: true,
-      saved: records.length - skipped,
-      skipped: skipped,
-      savedIds: savedIds
+    return { ok: true, saved: records.length - skipped, skipped: skipped, savedIds: savedIds };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Count tasks (used by the counter app)
+// ---------------------------------------------------------------------------
+
+// Open / In Progress tasks in a warehouse that are unassigned or assigned to this counter.
+function listTasks(params) {
+  params = params || {};
+  try {
+    var ss = getSpreadsheet_();
+    var wh = normWh_(params.warehouseId);
+    // counter may be one name or several (WMS username and display name).
+    var me = (Array.isArray(params.counter) ? params.counter : [params.counter])
+      .map(normName_).filter(Boolean);
+    var tasks = readTasks_(ss).filter(function(t) {
+      if (wh && normWh_(t.warehouseId) !== wh) return false;
+      if (OPEN_STATUSES.indexOf(t.status) === -1) return false;
+      var assigned = normName_(t.assignedTo);
+      return !assigned || me.indexOf(assigned) !== -1;
+    });
+    return { ok: true, tasks: tasks };
+  } catch (err) {
+    return { ok: false, error: errorMessage_(err) };
+  }
+}
+
+// Counter creates their own task (assigned to themselves, In Progress).
+function createTask(params) {
+  params = params || {};
+  return withLock_(function() {
+    if (!params.warehouseId) throw new Error('Warehouse is required.');
+    if (!params.customerNo) throw new Error('Customer number is required.');
+    var counter = String(params.counter || '').trim();
+    var task = addTask_(getSpreadsheet_(), {
+      warehouseId: params.warehouseId,
+      customerNo: params.customerNo,
+      customerName: params.customerName,
+      locations: params.locations,
+      assignedTo: counter,
+      status: 'In Progress',
+      source: 'Counter',
+      createdBy: counter || 'Counter',
+      startedAt: new Date().toISOString(),
+      notes: params.notes
+    });
+    clearMonitorCache_();
+    return { ok: true, task: task };
+  });
+}
+
+// Called after the counter loads the task's inventory: stores the expected pallet
+// list (replacing any earlier upload for this task) and marks the task In Progress.
+function startTask(params) {
+  params = params || {};
+  return withLock_(function() {
+    var ss = getSpreadsheet_();
+    var found = findTask_(ss, params.taskId);
+    if (!found) throw new Error('Task ' + params.taskId + ' not found.');
+    var t = found.task;
+    var items = Array.isArray(params.items) ? params.items : [];
+    var now = new Date().toISOString();
+
+    var expSheet = getOrCreateSheet_(ss, EXPECTED_TAB, EXPECTED_HEADERS);
+    var lastRow = expSheet.getLastRow();
+    var keep = [];
+    if (lastRow >= 2) {
+      keep = expSheet.getRange(2, 1, lastRow - 1, EXPECTED_HEADERS.length).getValues()
+        .filter(function(r) { return String(r[0]) !== t.taskId; });
+      expSheet.getRange(2, 1, lastRow - 1, EXPECTED_HEADERS.length).clearContent();
+    }
+    var fresh = items.map(function(i) {
+      return [t.taskId, t.warehouseId, i.lpn || '', i.itemId || '', i.itemName || '', i.sysLocation || '',
+        Number(i.sysActualQty || 0), i.customerNo || t.customerNo, now];
+    });
+    var all = keep.concat(fresh);
+    if (all.length) expSheet.getRange(2, 1, all.length, EXPECTED_HEADERS.length).setValues(all);
+
+    var updates = { 'Status': 'In Progress', 'Expected Pallets': fresh.length };
+    if (!t.startedAt) updates['Started At'] = now;
+    if (!t.assignedTo && params.counter) updates['Assigned To'] = String(params.counter).trim();
+    writeTaskFields_(found.sheet, found.row, updates);
+    SpreadsheetApp.flush();
+    clearMonitorCache_();
+    return { ok: true, task: findTask_(ss, t.taskId).task };
+  });
+}
+
+function completeTask(params) {
+  params = params || {};
+  return withLock_(function() {
+    var ss = getSpreadsheet_();
+    var found = findTask_(ss, params.taskId);
+    if (!found) throw new Error('Task ' + params.taskId + ' not found.');
+    writeTaskFields_(found.sheet, found.row, { 'Status': 'Completed', 'Completed At': new Date().toISOString() });
+    clearMonitorCache_();
+    return { ok: true, task: findTask_(ss, params.taskId).task };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Monitor (manager) API — every call needs the MONITOR_CODE access code
+// ---------------------------------------------------------------------------
+
+function getMonitorData(params) {
+  params = params || {};
+  try {
+    checkMonitorCode_(params.code);
+    var cache = CacheService.getScriptCache();
+    var cacheKey = 'monitor_v1';
+    var cached = cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    var result = buildMonitorData_(getSpreadsheet_());
+    try { cache.put(cacheKey, JSON.stringify(result), 15); } catch (e) { /* too large to cache */ }
+    return result;
+  } catch (err) {
+    return { ok: false, error: errorMessage_(err), authError: !!(err && err.authError) };
+  }
+}
+
+// Supervisor assigns a task from the monitor page.
+function monitorCreateTask(params) {
+  params = params || {};
+  try {
+    checkMonitorCode_(params.code);
+  } catch (err) {
+    return { ok: false, error: errorMessage_(err), authError: true };
+  }
+  return withLock_(function() {
+    if (!params.warehouseId) throw new Error('Warehouse is required.');
+    if (!params.customerNo) throw new Error('Customer number is required.');
+    var task = addTask_(getSpreadsheet_(), {
+      warehouseId: params.warehouseId,
+      customerNo: params.customerNo,
+      customerName: params.customerName,
+      locations: params.locations,
+      assignedTo: params.assignedTo,
+      status: 'Open',
+      source: 'Supervisor',
+      createdBy: 'Monitor',
+      notes: params.notes
+    });
+    clearMonitorCache_();
+    return { ok: true, task: task };
+  });
+}
+
+// Supervisor reassigns / reopens / cancels / completes a task.
+function monitorUpdateTask(params) {
+  params = params || {};
+  try {
+    checkMonitorCode_(params.code);
+  } catch (err) {
+    return { ok: false, error: errorMessage_(err), authError: true };
+  }
+  return withLock_(function() {
+    var ss = getSpreadsheet_();
+    var found = findTask_(ss, params.taskId);
+    if (!found) throw new Error('Task ' + params.taskId + ' not found.');
+    var updates = {};
+    if (params.status) {
+      var allowed = ['Open', 'In Progress', 'Completed', 'Cancelled'];
+      if (allowed.indexOf(params.status) === -1) throw new Error('Unknown status ' + params.status);
+      updates['Status'] = params.status;
+      if (params.status === 'Completed') updates['Completed At'] = new Date().toISOString();
+      if (params.status === 'Open' || params.status === 'In Progress') updates['Completed At'] = '';
+    }
+    if (params.assignedTo !== undefined) updates['Assigned To'] = String(params.assignedTo || '').trim();
+    writeTaskFields_(found.sheet, found.row, updates);
+    clearMonitorCache_();
+    return { ok: true, task: findTask_(ss, params.taskId).task };
+  });
+}
+
+function buildMonitorData_(ss) {
+  var now = Date.now();
+  var tasks = readTasks_(ss);
+  var taskById = {};
+  tasks.forEach(function(t) {
+    t.expectedLpns = {};
+    t.expected = Number(t.expectedPallets || 0);
+    t.counted = 0; t.countedExpected = 0; t.extra = 0;
+    t.variances = 0; t.netUnits = 0; t.lastActivity = ''; t.counters = {};
+    taskById[t.taskId] = t;
+  });
+
+  // Expected pallets per task
+  var exp = ss.getSheetByName(EXPECTED_TAB);
+  if (exp && exp.getLastRow() >= 2) {
+    exp.getRange(2, 1, exp.getLastRow() - 1, 3).getValues().forEach(function(r) {
+      var t = taskById[String(r[0])];
+      if (t) t.expectedLpns[String(r[2]).toUpperCase()] = true;
+    });
+    tasks.forEach(function(t) {
+      var n = Object.keys(t.expectedLpns).length;
+      if (n) t.expected = n;
+    });
+  }
+
+  // Latest count per (task, warehouse, pallet), plus activity
+  var master = ss.getSheetByName(MASTER_TAB);
+  var rows = [];
+  if (master && master.getLastRow() >= 2) {
+    var width = Math.min(HEADERS.length, master.getLastColumn());
+    rows = master.getRange(2, 1, master.getLastRow() - 1, width).getValues();
+  }
+  var latest = {};
+  var perPallet = {};
+  var counters = {};
+  var recent = [];
+  var startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+
+  rows.forEach(function(r) {
+    var rec = {
+      ts: toIso_(r[COL['Timestamp']]),
+      warehouseId: String(r[COL['Warehouse ID']] || ''),
+      auditor: String(r[COL['Auditor']] || ''),
+      lpn: String(r[COL['Pallet LP']] || '').toUpperCase(),
+      sysLocation: String(r[COL['Sys Location']] || ''),
+      actualLocation: String(r[COL['Actual Location']] || ''),
+      itemId: String(r[COL['Item ID']] || ''),
+      itemName: String(r[COL['Item Description']] || ''),
+      sysActual: Number(r[COL['Sys Actual']] || 0),
+      counted: Number(r[COL['Counted Qty']] || 0),
+      variance: Number(r[COL['Variance']] || 0),
+      reason: String(r[COL['Reason']] || ''),
+      notes: String(r[COL['Notes']] || ''),
+      taskId: String(r[COL['Task ID']] || ''),
+      customerNo: String(r[COL['Customer No']] || ''),
+      customerName: String(r[COL['Customer Name']] || '')
     };
+    if (!rec.lpn) return;
+    latest[rec.taskId + '|' + rec.warehouseId + '|' + rec.lpn] = rec;
+
+    var pk = rec.warehouseId + '|' + rec.lpn;
+    var p = perPallet[pk] = perPallet[pk] || { warehouseId: rec.warehouseId, lpn: rec.lpn, itemId: rec.itemId, tasks: {}, auditors: {}, counts: [] };
+    p.tasks[rec.taskId || '(no task)'] = true;
+    p.auditors[rec.auditor || '(unknown)'] = true;
+    p.counts.push({ auditor: rec.auditor, taskId: rec.taskId, counted: rec.counted, ts: rec.ts });
+
+    var c = counters[rec.auditor || '(unknown)'] = counters[rec.auditor || '(unknown)'] ||
+      { name: rec.auditor || '(unknown)', lastActivity: '', countsToday: 0, warehouseId: '', taskId: '', customerNo: '' };
+    if (!c.lastActivity || rec.ts > c.lastActivity) {
+      c.lastActivity = rec.ts; c.warehouseId = rec.warehouseId; c.taskId = rec.taskId; c.customerNo = rec.customerNo;
+    }
+    if (rec.ts && new Date(rec.ts).getTime() >= startOfDay.getTime()) c.countsToday++;
+    recent.push(rec);
+  });
+
+  var variances = [];
+  Object.keys(latest).forEach(function(k) {
+    var rec = latest[k];
+    var t = taskById[rec.taskId];
+    var locMismatch = rec.actualLocation && rec.sysLocation && rec.actualLocation !== rec.sysLocation;
+    if (t) {
+      t.counted++;
+      if (t.expectedLpns[rec.lpn]) t.countedExpected++; else t.extra++;
+      if (rec.variance !== 0 || locMismatch) t.variances++;
+      t.netUnits += rec.variance;
+      if (!t.lastActivity || rec.ts > t.lastActivity) t.lastActivity = rec.ts;
+      t.counters[rec.auditor] = true;
+    }
+    if (rec.variance !== 0 || locMismatch) variances.push(rec);
+  });
+  variances.sort(function(a, b) { return a.ts < b.ts ? 1 : -1; });
+
+  var duplicates = [];
+  Object.keys(perPallet).forEach(function(k) {
+    var p = perPallet[k];
+    var taskIds = Object.keys(p.tasks);
+    var auditors = Object.keys(p.auditors);
+    if (taskIds.length > 1 || auditors.length > 1) {
+      duplicates.push({ warehouseId: p.warehouseId, lpn: p.lpn, itemId: p.itemId, tasks: taskIds, auditors: auditors, counts: p.counts.slice(-6) });
+    }
+  });
+
+  recent.sort(function(a, b) { return a.ts < b.ts ? 1 : -1; });
+
+  var outTasks = tasks.map(function(t) {
+    return {
+      taskId: t.taskId, warehouseId: t.warehouseId, customerNo: t.customerNo, customerName: t.customerName,
+      locations: t.locations, assignedTo: t.assignedTo, status: t.status, source: t.source,
+      createdAt: t.createdAt, startedAt: t.startedAt, completedAt: t.completedAt,
+      expected: t.expected, counted: t.counted, countedExpected: t.countedExpected, extra: t.extra,
+      variances: t.variances, netUnits: t.netUnits, lastActivity: t.lastActivity,
+      counters: Object.keys(t.counters).filter(Boolean)
+    };
+  });
+
+  return {
+    ok: true,
+    generatedAt: new Date(now).toISOString(),
+    tasks: outTasks,
+    counters: Object.keys(counters).map(function(k) { return counters[k]; })
+      .sort(function(a, b) { return a.lastActivity < b.lastActivity ? 1 : -1; }),
+    variances: variances.slice(0, 300),
+    duplicates: duplicates.slice(0, 200),
+    recent: recent.slice(0, 40),
+    totals: { records: rows.length, varianceCount: variances.length, duplicateCount: duplicates.length }
+  };
+}
+
+function checkMonitorCode_(code) {
+  var props = PropertiesService.getScriptProperties();
+  var expected = props.getProperty('MONITOR_CODE');
+  var fail = function(msg) { var e = new Error(msg); e.authError = true; throw e; };
+  if (!expected) fail('Monitor is not set up yet: add a MONITOR_CODE script property in Apps Script.');
+
+  // Slow down guessing: after 10 wrong codes in 10 minutes, refuse for 10 minutes.
+  var cache = CacheService.getScriptCache();
+  var fails = Number(cache.get('monitor_fails') || 0);
+  if (fails >= 10) fail('Too many wrong access codes. Try again in 10 minutes.');
+
+  if (String(code || '') !== String(expected)) {
+    cache.put('monitor_fails', String(fails + 1), 600);
+    fail('Wrong access code.');
+  }
+}
+
+function clearMonitorCache_() {
+  try { CacheService.getScriptCache().remove('monitor_v1'); } catch (e) { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// Task sheet helpers
+// ---------------------------------------------------------------------------
+
+function readTasks_(ss) {
+  var sheet = getOrCreateSheet_(ss, TASK_TAB, TASK_HEADERS);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var values = sheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
+  var tasks = [];
+  var fills = [];
+  values.forEach(function(r, i) {
+    var hasContent = r.some(function(v) { return v !== '' && v !== null; });
+    if (!hasContent) return;
+    // Rows typed straight into the Sheet by a supervisor: fill in the blanks.
+    var changed = false;
+    if (!r[TCOL['Task ID']]) { r[TCOL['Task ID']] = newTaskId_(); changed = true; }
+    if (!r[TCOL['Status']]) { r[TCOL['Status']] = 'Open'; changed = true; }
+    if (!r[TCOL['Source']]) { r[TCOL['Source']] = 'Supervisor'; changed = true; }
+    if (!r[TCOL['Created At']]) { r[TCOL['Created At']] = new Date().toISOString(); changed = true; }
+    if (changed) fills.push({ row: i + 2, values: r });
+    tasks.push(taskFromRow_(r));
+  });
+  fills.forEach(function(f) { sheet.getRange(f.row, 1, 1, TASK_HEADERS.length).setValues([f.values]); });
+  return tasks;
+}
+
+function taskFromRow_(r) {
+  return {
+    taskId: String(r[TCOL['Task ID']]),
+    warehouseId: String(r[TCOL['Warehouse ID']] || ''),
+    customerNo: String(r[TCOL['Customer No']] || ''),
+    customerName: String(r[TCOL['Customer Name']] || ''),
+    locations: String(r[TCOL['Locations']] || ''),
+    assignedTo: String(r[TCOL['Assigned To']] || ''),
+    status: normStatus_(r[TCOL['Status']]),
+    source: String(r[TCOL['Source']] || ''),
+    createdAt: toIso_(r[TCOL['Created At']]),
+    createdBy: String(r[TCOL['Created By']] || ''),
+    startedAt: toIso_(r[TCOL['Started At']]),
+    completedAt: toIso_(r[TCOL['Completed At']]),
+    expectedPallets: Number(r[TCOL['Expected Pallets']] || 0),
+    notes: String(r[TCOL['Notes']] || '')
+  };
+}
+
+function addTask_(ss, t) {
+  var sheet = getOrCreateSheet_(ss, TASK_TAB, TASK_HEADERS);
+  var row = [];
+  row[TCOL['Task ID']] = newTaskId_();
+  row[TCOL['Warehouse ID']] = String(t.warehouseId || '').trim();
+  row[TCOL['Customer No']] = String(t.customerNo || '').trim();
+  row[TCOL['Customer Name']] = String(t.customerName || '').trim();
+  row[TCOL['Locations']] = String(t.locations || '').trim();
+  row[TCOL['Assigned To']] = String(t.assignedTo || '').trim();
+  row[TCOL['Status']] = t.status || 'Open';
+  row[TCOL['Source']] = t.source || '';
+  row[TCOL['Created At']] = new Date().toISOString();
+  row[TCOL['Created By']] = t.createdBy || '';
+  row[TCOL['Started At']] = t.startedAt || '';
+  row[TCOL['Completed At']] = '';
+  row[TCOL['Expected Pallets']] = '';
+  row[TCOL['Notes']] = String(t.notes || '').trim();
+  sheet.getRange(sheet.getLastRow() + 1, 1, 1, TASK_HEADERS.length).setValues([row]);
+  return taskFromRow_(row);
+}
+
+function findTask_(ss, taskId) {
+  if (!taskId) return null;
+  var sheet = getOrCreateSheet_(ss, TASK_TAB, TASK_HEADERS);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  var values = sheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][TCOL['Task ID']]) === String(taskId)) {
+      return { sheet: sheet, row: i + 2, task: taskFromRow_(values[i]) };
+    }
+  }
+  return null;
+}
+
+function writeTaskFields_(sheet, row, updates) {
+  Object.keys(updates).forEach(function(h) {
+    sheet.getRange(row, TCOL[h] + 1).setValue(updates[h]);
+  });
+}
+
+function newTaskId_() {
+  var d = new Date();
+  var stamp = Utilities.formatDate(d, Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyMMdd-HHmm');
+  return 'T' + stamp + '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
+}
+
+function normStatus_(s) {
+  var v = String(s || '').trim().toLowerCase();
+  if (!v || v === 'open' || v === 'new' || v === 'assigned') return 'Open';
+  if (v === 'in progress' || v === 'in-progress' || v === 'started' || v === 'counting') return 'In Progress';
+  if (v === 'completed' || v === 'complete' || v === 'done') return 'Completed';
+  if (v === 'cancelled' || v === 'canceled') return 'Cancelled';
+  return String(s).trim();
+}
+
+function normWh_(s) { return String(s || '').trim().toUpperCase(); }
+function normName_(s) { return String(s || '').trim().toLowerCase(); }
+
+// ---------------------------------------------------------------------------
+// General helpers
+// ---------------------------------------------------------------------------
+
+function withLock_(fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) {
+    return { ok: false, error: 'Sheet is busy (lock timeout). Please retry.' };
+  }
+  try {
+    return fn();
   } catch (err) {
     return { ok: false, error: errorMessage_(err) };
   } finally {
@@ -124,20 +600,16 @@ function appendAuditRecords(payload) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function loadTemplate_() {
+function loadTemplate_(names) {
   var lastErr;
-  for (var i = 0; i < HTML_FILE_NAMES.length; i++) {
+  for (var i = 0; i < names.length; i++) {
     try {
-      return HtmlService.createTemplateFromFile(HTML_FILE_NAMES[i]);
+      return HtmlService.createTemplateFromFile(names[i]);
     } catch (err) {
       lastErr = err;
     }
   }
-  throw new Error('No HTML file named "index" found in this Apps Script project. ' + errorMessage_(lastErr));
+  throw new Error('No HTML file named "' + names[0] + '" found in this Apps Script project. ' + errorMessage_(lastErr));
 }
 
 function getSpreadsheet_() {
@@ -149,29 +621,36 @@ function getSpreadsheet_() {
     'or set the SPREADSHEET_ID script property.');
 }
 
-function getOrCreateSheet_(ss, tabName) {
+// Creates the tab with headers, or adds any missing header columns to an existing tab
+// (tabs created by older versions keep their data; new columns are added on the right).
+function getOrCreateSheet_(ss, tabName, headers) {
   var sheet = ss.getSheetByName(tabName);
   if (!sheet) {
     sheet = ss.insertSheet(tabName);
-    sheet.appendRow(HEADERS);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
-    styleHeader_(sheet);
+    styleHeader_(sheet, headers.length);
     return sheet;
   }
-  // Upgrade tabs created by the earlier version (no Record ID column).
-  if (sheet.getMaxColumns() < HEADERS.length) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), HEADERS.length - sheet.getMaxColumns());
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
   }
-  var headerCell = sheet.getRange(1, RECORD_ID_COL);
-  if (headerCell.getValue() !== 'Record ID') {
-    headerCell.setValue('Record ID');
-    styleHeader_(sheet);
+  var current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  var needsFix = false;
+  for (var i = 0; i < headers.length; i++) {
+    if (current[i] !== headers[i]) {
+      if (current[i] === '' || current[i] === null) { current[i] = headers[i]; needsFix = true; }
+    }
+  }
+  if (needsFix) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([current]);
+    styleHeader_(sheet, headers.length);
   }
   return sheet;
 }
 
-function styleHeader_(sheet) {
-  sheet.getRange(1, 1, 1, HEADERS.length)
+function styleHeader_(sheet, width) {
+  sheet.getRange(1, 1, 1, width)
     .setFontWeight('bold')
     .setBackground('#1e293b')
     .setFontColor('#ffffff');
@@ -211,8 +690,22 @@ function buildRow_(r, recordId) {
     r.status || (variance === 0 ? 'Matched' : 'Variance'),
     r.reasonCode || '',
     r.notes || '',
-    recordId || ''
+    recordId || '',
+    r.taskId || '',
+    r.customerNo || '',
+    r.customerName || ''
   ];
+}
+
+function safeTabName_(s) {
+  return String(s).replace(/[^\w-]/g, '_');
+}
+
+function toIso_(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v.getTime()) ? '' : v.toISOString();
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toISOString();
 }
 
 function jsonOutput_(obj) {
