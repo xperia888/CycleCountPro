@@ -6,7 +6,7 @@
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.7';
+    window.CCP_BUILD = '2026-11-22.8';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -559,7 +559,27 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.7</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.8</span></div>
+
+  <!-- ======================================================================= -->
+  <!-- BACKUP PROMPT: shown before new data is loaded over existing data          -->
+  <!-- ======================================================================= -->
+  <div id="backup-prompt-modal" class="fixed inset-0 z-[60] hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="backup-prompt-title">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 id="backup-prompt-title" class="text-base font-bold">Back up current data first?</h3>
+      </div>
+      <div class="px-5 py-4 space-y-2 text-sm">
+        <p id="backup-prompt-summary"></p>
+        <p id="backup-prompt-sync" class="text-xs"></p>
+      </div>
+      <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-2 sm:justify-end">
+        <button id="backup-prompt-cancel" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 min-h-[40px]">Cancel</button>
+        <button id="backup-prompt-skip" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white min-h-[40px]">Continue without backup</button>
+        <button id="backup-prompt-export" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[40px]">Export backup &amp; continue</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
@@ -1966,6 +1986,110 @@
       document.getElementById(id)?.classList.add('hidden');
     }
 
+    // Builds the Pallet_Detail + Item_Level_Summary workbook for the active warehouse
+    // and downloads it. Used by the report's Export .XLSX button and by backups.
+    function exportAuditWorkbook(fileName) {
+      const itemRows = buildItemLevelSummaryRows().map(r => ({
+        'Warehouse ID': state.activeWarehouse,
+        'Item ID': r.itemId,
+        'Item Description': r.itemName,
+        'Pallets Audited': r.palletsCounted,
+        'Pallets Total': r.palletsTotal,
+        'No-LP Pallets': r.noLpCount,
+        'Total Sys Actual': r.sysActual,
+        'Total Allocation': r.sysAlloc,
+        'Total Remaining': r.sysRem,
+        'Total Counted': r.physCounted,
+        'Net Diff (vs Sys)': r.varianceVsSys,
+        'Observed Bays': r.locationsStr
+      }));
+
+      const palletRows = state.items.map(i => ({
+        'Warehouse ID': i.warehouseId || state.activeWarehouse,
+        'Pallet LP': i.lpn,
+        'Inbound ID': i.inboundNo || '',
+        'PO No': i.poNo || '',
+        'Sys Location': i.sysLocation,
+        'Actual Location': i.actualLocation || i.sysLocation,
+        'Item ID': i.itemId,
+        'Item Description': i.itemName,
+        'Sys Actual': i.sysActualQty,
+        'Allocation': i.sysAllocQty,
+        'Remaining': i.sysAvailQty,
+        'Counted': i.counted ? i.actualQty : '',
+        'Variance': i.counted ? (i.actualQty - i.sysActualQty) : '',
+        'Status': i.counted ? 'Audited' : 'Pending',
+        'Counted At': i.countedAt || '',
+        'Reason': i.reasonCode || '',
+        'Notes': i.notes || ''
+      }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(palletRows), 'Pallet_Detail');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemRows), 'Item_Level_Summary');
+      XLSX.writeFile(wb, fileName || `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}.xlsx`);
+    }
+
+    function backupFileName() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+      return `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}_backup_${stamp}.xlsx`;
+    }
+
+    // Before new data is loaded, offers to export the active warehouse's current data.
+    // Resolves true to go ahead, false if the user cancels. No prompt when there is
+    // nothing worth keeping (no rows, or the untouched built-in sample).
+    function confirmBackupBeforeNewData(actionLabel, willReplace = true) {
+      const total = state.items.length;
+      const counted = state.items.filter(i => i.counted).length;
+      const untouchedSample = counted === 0 && /sample/i.test(state.sourceLabel || '');
+      if (!total || untouchedSample) return Promise.resolve(true);
+
+      const modal = document.getElementById('backup-prompt-modal');
+      if (!modal) return Promise.resolve(true);
+      const pending = state.pendingSyncQueue.length;
+      document.getElementById('backup-prompt-summary').textContent =
+        `${state.activeWarehouse} has ${total} pallet${total === 1 ? '' : 's'} on this device, `
+        + `${counted} counted. ${actionLabel} will ${willReplace ? 'replace' : 'add to'} this data. `
+        + 'Export a backup (.xlsx) first?';
+      const syncLine = document.getElementById('backup-prompt-sync');
+      syncLine.textContent = pending
+        ? `${pending} count${pending === 1 ? ' has' : 's have'} not reached the Google Sheet yet. ${pending === 1 ? 'It stays' : 'They stay'} queued and will still sync.`
+        : (counted ? 'All counts so far are already saved in the Google Sheet.' : '');
+      syncLine.className = `text-xs ${pending ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-500'}`;
+
+      return new Promise(resolve => {
+        const buttons = {
+          export: document.getElementById('backup-prompt-export'),
+          skip: document.getElementById('backup-prompt-skip'),
+          cancel: document.getElementById('backup-prompt-cancel')
+        };
+        const finish = (choice) => {
+          Object.values(buttons).forEach(b => { b.onclick = null; });
+          modal.classList.add('hidden');
+          if (choice === 'export') {
+            try {
+              const name = backupFileName();
+              exportAuditWorkbook(name);
+              showToast(`Backup exported: ${name}`, 'success');
+            } catch (err) {
+              // Don't load new data if the backup failed: the user asked to keep a copy.
+              showToast(`Backup failed (${err.message}). Nothing was changed.`, 'error');
+              resolve(false);
+              return;
+            }
+          }
+          resolve(choice !== 'cancel');
+        };
+        buttons.export.onclick = () => finish('export');
+        buttons.skip.onclick = () => finish('skip');
+        buttons.cancel.onclick = () => finish('cancel');
+        modal.classList.remove('hidden');
+        buttons.export.focus();
+      });
+    }
+
     // -------------------------------------------------------------------------
     // RENDERING: HEADER, KPIS, SCANNER COMPARISON, LEDGER & FINAL REPORT
     // -------------------------------------------------------------------------
@@ -2947,6 +3071,8 @@
           showToast('Please sign in to WMS in Step 1 first.', 'warn');
           return;
         }
+        const replaceMode = (document.getElementById('wms-sync-mode')?.value || 'REPLACE') === 'REPLACE';
+        if (!(await confirmBackupBeforeNewData('This WMS pull', replaceMode))) return;
 
         const fetchBtn = document.getElementById('wms-live-fetch-btn');
         const stopBtn = document.getElementById('wms-stop-fetch-btn');
@@ -3017,6 +3143,10 @@
       document.getElementById('file-upload-input')?.addEventListener('change', async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        if (!(await confirmBackupBeforeNewData(`Importing ${file.name}`))) {
+          e.target.value = '';
+          return;
+        }
         try {
           let rows = [];
           if (file.name.toLowerCase().endsWith('.json')) {
@@ -3051,7 +3181,8 @@
         XLSX.writeFile(wb, 'stock_by_inventory_template.xls');
       });
 
-      document.getElementById('restore-sample-btn')?.addEventListener('click', () => {
+      document.getElementById('restore-sample-btn')?.addEventListener('click', async () => {
+        if (!(await confirmBackupBeforeNewData('Loading the sample data'))) return;
         applyImportedItems(normalizeRowsToItems(sampleRowsForActiveWarehouse()), 'stock_by_inventory Sample', true);
         closeModal('import-modal');
         showToast('Restored built-in sample inventory.', 'info');
@@ -3072,46 +3203,7 @@
         renderFinalReport();
       });
 
-      document.getElementById('export-xlsx-btn')?.addEventListener('click', () => {
-        const itemRows = buildItemLevelSummaryRows().map(r => ({
-          'Warehouse ID': state.activeWarehouse,
-          'Item ID': r.itemId,
-          'Item Description': r.itemName,
-          'Pallets Audited': r.palletsCounted,
-          'Pallets Total': r.palletsTotal,
-          'No-LP Pallets': r.noLpCount,
-          'Total Sys Actual': r.sysActual,
-          'Total Allocation': r.sysAlloc,
-          'Total Remaining': r.sysRem,
-          'Total Counted': r.physCounted,
-          'Net Diff (vs Sys)': r.varianceVsSys,
-          'Observed Bays': r.locationsStr
-        }));
-
-        const palletRows = state.items.map(i => ({
-          'Warehouse ID': i.warehouseId || state.activeWarehouse,
-          'Pallet LP': i.lpn,
-          'Inbound ID': i.inboundNo || '',
-          'PO No': i.poNo || '',
-          'Sys Location': i.sysLocation,
-          'Actual Location': i.actualLocation || i.sysLocation,
-          'Item ID': i.itemId,
-          'Item Description': i.itemName,
-          'Sys Actual': i.sysActualQty,
-          'Allocation': i.sysAllocQty,
-          'Remaining': i.sysAvailQty,
-          'Counted': i.counted ? i.actualQty : '',
-          'Variance': i.counted ? (i.actualQty - i.sysActualQty) : '',
-          'Status': i.counted ? 'Audited' : 'Pending',
-          'Reason': i.reasonCode || '',
-          'Notes': i.notes || ''
-        }));
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(palletRows), 'Pallet_Detail');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemRows), 'Item_Level_Summary');
-        XLSX.writeFile(wb, `CycleCountPro_${APP_VERSION}_${state.activeWarehouse}.xlsx`);
-      });
+      document.getElementById('export-xlsx-btn')?.addEventListener('click', () => exportAuditWorkbook());
 
       document.getElementById('export-csv-btn')?.addEventListener('click', () => {
         const rows = state.reportViewMode === 'ITEM'
