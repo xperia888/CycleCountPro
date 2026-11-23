@@ -5,8 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>WMS CycleCount Pro v2 — TC56 PDA & Inventory Audit Terminal</title>
   <script>
+    // On a static host (e.g. GitHub Pages) ?view=monitor opens the Monitoring Center page.
+    // (On the Apps Script link the server serves the monitor itself.)
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('view') === 'monitor' && !/googleusercontent\.com$/.test(window.location.hostname)) {
+          window.location.replace('monitor.html');
+        }
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+  <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.9';
+    window.CCP_BUILD = '2026-11-22.10';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -567,7 +579,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.9</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.10</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
