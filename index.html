@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-22.10';
+    window.CCP_BUILD = '2026-11-22.11';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -579,7 +579,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.10</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-22.11</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -970,10 +970,10 @@
     // Built-in default Google Apps Script Web App URL. A custom URL can only be set
     // from the in-app "Change URL" box (no ?gsheet= query param, so a shared link
     // cannot silently redirect count data to someone else's script).
-    const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxtIvbwoQ4bz3ncR5dh96eX3-rVaknz70yLXit_xlCnphj1t4CAS266S2MFc4P-KcpR/exec';
+    const DEFAULT_GOOGLE_SHEET_URL = 'https:\/\/script.google.com/macros/s/AKfycbxtIvbwoQ4bz3ncR5dh96eX3-rVaknz70yLXit_xlCnphj1t4CAS266S2MFc4P-KcpR/exec';
     // Previous built-in URLs. Devices that saved one of these are moved to the current default.
     const LEGACY_GOOGLE_SHEET_URLS = [
-      'https://script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec'
+      'https:\/\/script.google.com/macros/s/AKfycbw0hnqI3Fz9d-SQNRXR1s4l72pX_5sKkbliK1bJ_Q5WKUwYPVZW32pQHa8Kqn6erG6law/exec'
     ];
 
     // True when this page is served by the Apps Script web app itself (HtmlService),
@@ -1213,7 +1213,7 @@
         const cleanPass = String(password || '');
         const archSelect = document.getElementById('wms-arch-mode');
         let archMode = archSelect?.value || 'DIRECT';
-        const baseUrl = (document.getElementById('wms-base-url')?.value || 'https://prd-onus.target-ai.com:18890').trim().replace(/\/+$/, '');
+        const baseUrl = (document.getElementById('wms-base-url')?.value || 'https:\/\/prd-onus.target-ai.com:18890').trim().replace(/\/+$/, '');
 
         const attemptDirect = async () => {
           const res = await fetch(`${baseUrl}/api/login`, {
@@ -2078,7 +2078,7 @@
 
       async postQueryOnce(payload, signal) {
         const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
-        const directUrl = (document.getElementById('wms-endpoint-url')?.value || 'https://prd-onus.target-ai.com:18890/api/inventory/query/storageAndInboundDate').trim();
+        const directUrl = (document.getElementById('wms-endpoint-url')?.value || 'https:\/\/prd-onus.target-ai.com:18890/api/inventory/query/storageAndInboundDate').trim();
         const proxyUrl = (document.getElementById('wms-proxy-url')?.value || '/api/wms/inventory').trim();
         const url = archMode === 'PROXY' ? proxyUrl : directUrl;
 
