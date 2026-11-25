@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.5';
+    window.CCP_BUILD = '2026-11-25.6';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -583,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.5</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.6</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -1359,6 +1359,16 @@
           const saidOk = /success|成功|\bok\b/i.test(msg);
           if (!res.ok || !saidOk) {
             throw new Error(msg ? `WMS: ${msg}` : `WMS login failed (HTTP ${res.status})`);
+          }
+          // The WMS can answer "login success" at the top but refuse the token inside
+          // (result: {statusCode, success: false, message: "<reason>"}): show that reason.
+          const inner = [raw?.result, raw?.data].find(o => o && typeof o === 'object' && (o.message || o.msg || o.statusCode !== undefined));
+          if (inner) {
+            const why = inner.message || inner.msg || '';
+            throw new Error(`WMS did not issue a login token for this account`
+              + `${why ? ': "' + why + '"' : ''}${inner.statusCode !== undefined ? ' (status ' + inner.statusCode + ')' : ''}. `
+              + `Check the account in WMS (password expired or must be changed, account locked or without access), `
+              + `or sign in with another account.`);
           }
           const hdrs = readableHeaderNames(res.headers);
           throw new Error(`WMS said "${msg}" but sent no token the app can read. Reply fields: ${describeShape(raw) || 'none'}. `
