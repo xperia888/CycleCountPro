@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.2';
+    window.CCP_BUILD = '2026-11-25.3';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -212,7 +212,7 @@
     <!-- COUNT TASK BAR: which customer / task this device is counting -->
     <div id="task-bar" class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-800 shadow-sm">
       <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Task</span>
-      <span id="task-bar-label" class="text-xs font-semibold flex-1 min-w-0 truncate">No task: pick or create a task before importing or counting</span>
+      <span id="task-bar-label" class="text-xs font-semibold flex-1 min-w-0 truncate">No task: pick or create a task, or import a file, before counting</span>
       <span id="task-bar-progress" class="hidden text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300"></span>
       <button id="open-task-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 min-h-[34px]">Pick task</button>
     </div>
@@ -583,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.2</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.3</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -1078,6 +1078,7 @@
     };
 
     const state = {
+      importAwaitingTask: false,
       items: [],
       activeItemId: null,
       activeWarehouse: DEFAULT_WAREHOUSE,
@@ -1492,6 +1493,11 @@
     // Without one, open the task picker instead of doing the action.
     function requireTask(action) {
       if (getActiveTask()) return true;
+      if (state.importAwaitingTask && state.items.length) {
+        showToast(`Create a task for the imported data before ${action}.`, 'warn');
+        TaskService.promptForImport();
+        return false;
+      }
       showToast(`Pick or create a count task before ${action}.`, 'warn');
       TaskService.open().then(() => TaskService.feedback(
         `Pick a task below, or create your own, before ${action}. This lets the Monitoring Center follow the count.`, 'info'));
@@ -1525,7 +1531,8 @@
           items: state.items.filter(i => !i.draftBlind),
           sourceLabel: state.sourceLabel,
           pendingSyncQueue: state.pendingSyncQueue,
-          lastCloudSyncAt: state.lastCloudSyncAt
+          lastCloudSyncAt: state.lastCloudSyncAt,
+          awaitingTask: !!(state.importAwaitingTask && state.items.length && !getActiveTask())
         }));
       } catch (e) { /* Ignore quota errors */ }
     }
@@ -1539,6 +1546,7 @@
           state.sourceLabel = parsed.sourceLabel || `${whId} Audit Session`;
           state.pendingSyncQueue = Array.isArray(parsed.pendingSyncQueue) ? parsed.pendingSyncQueue : [];
           state.lastCloudSyncAt = parsed.lastCloudSyncAt || '';
+          state.importAwaitingTask = !!parsed.awaitingTask && state.items.length > 0;
           state.activeItemId = null;
           return true;
         }
@@ -1546,6 +1554,7 @@
       state.items = [];
       state.pendingSyncQueue = [];
       state.lastCloudSyncAt = '';
+      state.importAwaitingTask = false;
       state.activeItemId = null;
       state.sourceLabel = `${whId} (Empty — Query WMS or Import)`;
       return false;
@@ -1935,6 +1944,8 @@
 
       // Switches this device to the task's own data and pre-fills the WMS filters.
       activate(task) {
+        // Imported data waiting for a task moves into the task it is created or picked for.
+        const carry = task && !getActiveTask() && state.importAwaitingTask ? this.takeImportFor(task) : null;
         saveState();
         if (task) {
           state.activeTaskByWarehouse[state.activeWarehouse] = {
@@ -1946,6 +1957,15 @@
           delete state.activeTaskByWarehouse[state.activeWarehouse];
         }
         loadWarehouseBucket(state.activeWarehouse);
+        this.carried = 0;
+        if (carry && carry.items.length) {
+          const have = new Set(state.items.map(i => `${i.lpn}|${i.itemId}`));
+          const add = carry.items.filter(i => !have.has(`${i.lpn}|${i.itemId}`));
+          state.items = [...state.items, ...add];
+          if (!state.sourceLabel || /pull from WMS|Empty/.test(state.sourceLabel)) state.sourceLabel = carry.label;
+          this.carried = add.length;
+          saveState();
+        }
         if (task && !state.items.length) state.sourceLabel = `${task.customerNo} (Task ${task.taskId}: pull from WMS)`;
         const ownerInp = document.getElementById('flt-owner-no');
         if (ownerInp && task) ownerInp.value = task.customerNo;
@@ -1957,6 +1977,49 @@
         document.getElementById('comparison-empty-state')?.classList.remove('hidden');
         renderAll();
         if (typeof renderMultiQueryChips === 'function') renderMultiQueryChips();
+        if (this.carried) this.uploadExpected();
+      },
+
+      // Splits the imported (task-less) pallets: this task's customer, plus rows with no
+      // customer, go with the task; other customers' rows wait for their own task.
+      takeImportFor(task) {
+        const want = String(task.customerNo || '').trim().toUpperCase();
+        const mine = i => !want || !i.customerNo || String(i.customerNo).trim().toUpperCase() === want;
+        const items = state.items.filter(i => !i.draftBlind && mine(i));
+        state.items = state.items.filter(i => !i.draftBlind && !mine(i));
+        if (!state.items.length) state.importAwaitingTask = false;
+        return { items, label: state.sourceLabel };
+      },
+
+      customersInImport() {
+        const counts = {};
+        state.items.forEach(i => {
+          const c = String(i.customerNo || '').trim().toUpperCase();
+          if (c) counts[c] = (counts[c] || 0) + 1;
+        });
+        return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      },
+
+      // After an import with no task: open the task window with the customer filled in.
+      async promptForImport() {
+        const customers = this.customersInImport();
+        const top = customers[0]?.[0] || '';
+        const name = top ? (state.items.find(i => String(i.customerNo).trim().toUpperCase() === top)?.customerName || '') : '';
+        await this.open();
+        const no = document.getElementById('task-new-customer-no');
+        const nm = document.getElementById('task-new-customer-name');
+        if (no && !no.value) no.value = top;
+        if (nm && !nm.value) nm.value = name;
+        const list = customers.map(([c, n]) => `${c} (${n})`).join(', ');
+        const pallets = state.items.length;
+        if (!authSession.token) {
+          this.feedback(`${pallets} pallets imported. Sign in to WMS (API button), then create a task for them before counting.`, 'error');
+          return;
+        }
+        this.feedback(customers.length > 1
+          ? `${pallets} pallets imported for ${customers.length} customers: ${list}. Create (or pick) a task for one customer; its pallets move into the task. Repeat for the others.`
+          : `${pallets} pallets imported${top ? ' for ' + top : ''}. Create the task below (or pick one in the list) to start counting.`, 'info');
+        document.getElementById('task-create-btn')?.scrollIntoView({ block: 'nearest' });
       },
 
       async start(taskId) {
@@ -1965,9 +2028,12 @@
         if (!task) return;
         this.activate(task);
         this.renderModal();
-        this.feedback(state.items.length
-          ? `Continuing ${task.customerNo}. ${state.items.length} pallets loaded on this device.`
-          : `Started ${task.customerNo}. Next: pull this customer from WMS.`, 'success');
+        this.feedback(this.carried
+          ? `Started ${task.customerNo} with ${this.carried} imported pallets. Close this window and start counting.`
+          : state.items.length
+            ? `Continuing ${task.customerNo}. ${state.items.length} pallets loaded on this device.`
+            : `Started ${task.customerNo}. Next: pull this customer from WMS.`, 'success');
+        this.afterCarry();
       },
 
       async create() {
@@ -1990,12 +2056,24 @@
             const el = document.getElementById(id); if (el) el.value = '';
           });
           this.renderModal();
-          this.feedback(`Task ${res.task.taskId} created for ${customerNo}. Next: pull this customer from WMS.`, 'success');
+          this.feedback(this.carried
+            ? `Task ${res.task.taskId} created for ${customerNo} with ${this.carried} imported pallets. Close this window and start counting.`
+            : `Task ${res.task.taskId} created for ${customerNo}. Next: pull this customer from WMS.`, 'success');
+          this.afterCarry();
         } catch (err) {
           this.feedback(`Could not create task: ${err.message}`, 'error');
         } finally {
           if (btn) btn.disabled = false;
         }
+      },
+
+      // Tells the counter when imported pallets of other customers still wait for a task.
+      afterCarry() {
+        if (!this.carried) return;
+        const raw = localStorage.getItem(getWarehouseStorageKey(state.activeWarehouse, ''));
+        let left = 0;
+        try { left = raw ? (JSON.parse(raw).awaitingTask ? (JSON.parse(raw).items || []).length : 0) : 0; } catch (e) { left = 0; }
+        if (left) showToast(`${left} imported pallets of other customers still wait for a task (Task options → Stop working on task to see them).`, 'info');
       },
 
       // Sends the pallets this task should cover, so the monitor can show progress.
@@ -2048,9 +2126,12 @@
         const label = document.getElementById('task-bar-label');
         const prog = document.getElementById('task-bar-progress');
         const btn = document.getElementById('open-task-btn');
-        if (label) label.textContent = task ? `${this.describe(task)} · ${task.taskId}` : 'No task: pick or create a task before importing or counting';
+        if (label) label.textContent = task ? `${this.describe(task)} · ${task.taskId}`
+          : state.importAwaitingTask && state.items.length
+            ? `Imported ${state.items.length} pallets: create a task for them to start counting`
+            : 'No task: pick or create a task, or import a file, before counting';
         document.getElementById('task-bar')?.classList.toggle('task-bar-missing', !task);
-        if (btn) btn.textContent = task ? 'Task options' : 'Pick task';
+        if (btn) btn.textContent = task ? 'Task options' : (state.importAwaitingTask && state.items.length ? 'Create task' : 'Pick task');
         if (prog) {
           const total = state.items.length;
           const done = state.items.filter(i => i.counted).length;
@@ -2554,7 +2635,6 @@
       async confirm() {
         const err = this.validate();
         if (err) { document.getElementById('imp-error').textContent = err; return; }
-        if (!requireTask('importing inventory')) { closeModal('import-modal'); return; }
         if (!(await confirmBackupBeforeNewData(`Importing ${this.file.name}`))) return;
         const items = normalizeRowsToItems(this.canonicalRows());
         if (!items.length) { showToast('No valid inventory rows found with this match.', 'warn'); return; }
@@ -2563,7 +2643,7 @@
         this.remember();
         closeModal('import-modal');
         showToast(`Loaded ${kept} rows for ${state.activeWarehouse} from ${this.file.name}`, 'success');
-        TaskService.uploadExpected();
+        afterImportLoaded();
       },
 
       bind() {
@@ -2651,7 +2731,6 @@
       },
 
       async open(file) {
-        if (!requireTask('importing inventory')) { closeModal('import-modal'); return; }
         try {
           await this.load(file);
         } catch (err) {
@@ -2660,6 +2739,16 @@
         }
       }
     };
+
+    // Imported data with an active task is shared with the monitor at once; without one,
+    // it waits on this device and the counter is asked to create a task for it.
+    function afterImportLoaded() {
+      if (getActiveTask()) { TaskService.uploadExpected(); return; }
+      state.importAwaitingTask = state.items.length > 0;
+      saveState();
+      TaskService.renderBar();
+      if (state.importAwaitingTask) TaskService.promptForImport();
+    }
 
     // "1,200", " 12 ", "12.0" -> number; blank -> 0; text -> null
     function toQty(v) {
@@ -3401,7 +3490,10 @@
       document.getElementById('wms-login-wh-select')?.addEventListener('change', (e) => switchWarehouse(e.target.value));
 
       // Count tasks
-      document.getElementById('open-task-btn')?.addEventListener('click', () => TaskService.open());
+      document.getElementById('open-task-btn')?.addEventListener('click', () => {
+        if (!getActiveTask() && state.importAwaitingTask && state.items.length) TaskService.promptForImport();
+        else TaskService.open();
+      });
       document.getElementById('task-refresh-btn')?.addEventListener('click', () => TaskService.load());
       document.getElementById('task-create-btn')?.addEventListener('click', () => TaskService.create());
       document.getElementById('task-complete-btn')?.addEventListener('click', () => TaskService.complete());
@@ -3421,7 +3513,6 @@
 
       // Top Toolbar Buttons
       document.getElementById('open-import-btn')?.addEventListener('click', () => {
-        if (!requireTask('importing inventory')) return;
         ImportMapper.reset();
         openModal('import-modal');
       });
@@ -4065,10 +4156,10 @@
       });
 
       document.getElementById('restore-sample-btn')?.addEventListener('click', async () => {
-        if (!requireTask('loading data')) { closeModal('import-modal'); return; }
         if (!(await confirmBackupBeforeNewData('Loading the sample data'))) return;
         applyImportedItems(normalizeRowsToItems(sampleRowsForActiveWarehouse()), 'stock_by_inventory Sample', true);
         closeModal('import-modal');
+        afterImportLoaded();
         showToast('Restored built-in sample inventory.', 'info');
       });
 
