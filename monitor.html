@@ -5,87 +5,124 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CycleCount Pro — Monitoring Center</title>
   <style>
-    /* Theme matches the Outbound Staging live dashboard: light by default, dark with the button, T key or ?theme=dark */
+    /* Theme: the Outbound Staging live dashboard (slate, amber, sky). Light by default; dark with the button, T key or ?theme=dark */
     :root {
-      --bg: #e9edf2; --panel: #ffffff; --panel2: #f2f5f9; --panel3: #e1e7ee; --line: #cfd7e1; --row-line: #e4e9f0;
-      --text: #101828; --text2: #3d4a5c; --muted: #667085;
-      --accent: #1f6fd1; --accent-hover: #1a5fb4; --accent-text: #1559b0; --accent-soft: rgba(31, 111, 209, 0.12);
-      --ok: #12a150; --ok-text: #0e7c3e; --ok-soft: rgba(18, 161, 80, 0.12);
-      --warn: #f2a900; --warn-text: #8f5a00; --warn-soft: rgba(242, 169, 0, 0.16);
-      --bad: #d12c2c; --bad-text: #b42318; --bad-soft: rgba(209, 44, 44, 0.10);
-      --idle: #98a2b3; --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
-      --header-bg: #10294a; --header-surface: #1b3a62; --header-line: #2f5384; --header-border: var(--accent);
-      --overlay: rgba(16, 24, 40, 0.55);
+      --page-bg: #e2e8f0; --bg: #f1f5f9; --panel: #ffffff; --panel2: #f8fafc; --panel3: #e2e8f0; --line: #e2e8f0; --row-line: #eef2f6;
+      --text: #0f172a; --text2: #334155; --muted: #64748b;
+      --brand: #f59e0b; --brand-hover: #d97706;
+      --accent: #0284c7; --accent-text: #0369a1; --accent-soft: rgba(2, 132, 199, 0.12);
+      --ok: #059669; --ok-text: #047857; --ok-soft: rgba(5, 150, 105, 0.12);
+      --warn: #f59e0b; --warn-text: #b45309; --warn-soft: rgba(245, 158, 11, 0.16);
+      --bad: #dc2626; --bad-text: #b91c1c; --bad-soft: rgba(220, 38, 38, 0.10);
+      --idle: #94a3b8; --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.06);
+      --header-bg: #0f172a; --header-surface: #1e293b; --header-surface-3: #334155; --header-line: #334155; --header-border: #1e293b;
+      --overlay: rgba(2, 6, 23, 0.78);
       --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
       --mono: "JetBrains Mono", "Consolas", "SFMono-Regular", ui-monospace, monospace;
     }
     body.dark {
-      --bg: #121211; --panel: #1a1a19; --panel2: #242422; --panel3: #2f2f2c; --line: #3d3d39; --row-line: #2b2b28;
-      --text: #f0efec; --text2: #c3c2b7; --muted: #8f8e86;
-      --accent: #3987e5; --accent-hover: #4d95ea; --accent-text: #9ec5f4; --accent-soft: rgba(57, 135, 229, 0.18);
-      --ok: #2fb86a; --ok-text: #7fd8a4; --ok-soft: rgba(47, 184, 106, 0.16);
-      --warn: #fab219; --warn-text: #fab219; --warn-soft: rgba(250, 178, 25, 0.16);
-      --bad: #d03b3b; --bad-text: #f3a5a5; --bad-soft: rgba(208, 59, 59, 0.18);
-      --idle: #6b6a64; --shadow: none;
-      --header-bg: #1a1a19; --header-surface: #242422; --header-line: #3d3d39; --header-border: #3d3d39;
-      --overlay: rgba(0, 0, 0, 0.7);
+      --page-bg: #020617; --bg: #0b1220; --panel: #0f172a; --panel2: #1e293b; --panel3: #334155; --line: #334155; --row-line: #1e293b;
+      --text: #f1f5f9; --text2: #cbd5e1; --muted: #94a3b8;
+      --accent: #0ea5e9; --accent-text: #7dd3fc; --accent-soft: rgba(14, 165, 233, 0.18);
+      --ok: #10b981; --ok-text: #6ee7b7; --ok-soft: rgba(16, 185, 129, 0.16);
+      --warn: #fbbf24; --warn-text: #fbbf24; --warn-soft: rgba(251, 191, 36, 0.16);
+      --bad: #ef4444; --bad-text: #fca5a5; --bad-soft: rgba(239, 68, 68, 0.18);
+      --idle: #64748b; --shadow: none;
+      --header-bg: #020617; --header-surface: #1e293b; --header-surface-3: #334155; --header-line: #334155; --header-border: #1e293b;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+    html { background: var(--page-bg); }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; min-height: 100vh; }
     .mono { font-family: var(--mono); }
-    header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 20px;
-      background: var(--header-bg); border-bottom: 4px solid var(--header-border); position: sticky; top: 0; z-index: 5;
-      /* the header keeps light-on-dark text in both themes */
-      --text: #ffffff; --text2: #c8d5e6; --muted: #9fb2ca; --panel2: var(--header-surface); --line: var(--header-line);
-      color: var(--text); }
-    @media (max-width: 700px) { header { position: static; } }
-    header h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: -0.01em; }
-    header h1 span { color: #fcd27a; }
-    .spacer { flex: 1; }
+
+    /* ---------- Header: brand | KPI tiles | clock (as on the Outbound dashboard) ---------- */
+    header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px;
+      padding: 14px 24px; background: var(--header-bg); border-bottom: 4px solid var(--header-border);
+      position: sticky; top: 0; z-index: 5;
+      --text: #ffffff; --text2: #cbd5e1; --muted: #94a3b8; --panel2: var(--header-surface); --panel3: var(--header-surface-3);
+      --line: var(--header-line); --bad: #f87171; --warn: #fbbf24; color: var(--text); }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .brand-mark { width: 52px; height: 52px; border-radius: 12px; flex: none; background: var(--brand); color: #020617;
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
+    .brand-mark svg { width: 30px; height: 30px; }
+    .brand-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .brand h1 { font-size: 24px; margin: 0; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+    .brand h1 span { color: var(--brand); }
+    .brand .sub { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text2); flex-wrap: wrap; }
+    .wh-chip { font-family: var(--mono); font-weight: 800; font-size: 14px; padding: 3px 8px; border-radius: 6px; min-height: 0;
+      background: rgba(14, 165, 233, 0.2); color: #7dd3fc; border: 1px solid rgba(14, 165, 233, 0.4); cursor: pointer; }
+    .wh-chip option { background: #0f172a; color: #fff; }
+    .theme-btn { display: inline-flex; align-items: center; gap: 6px; font: 700 13px var(--font); color: var(--text2);
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; min-height: 0; cursor: pointer; }
+    .theme-btn:hover { color: var(--text); border-color: var(--muted); }
+    .kpis { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+    .kpi { min-width: 128px; padding: 8px 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); }
+    .kpi .label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+    .kpi .value { font-size: 32px; font-weight: 800; line-height: 1.05; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .kpi .meter { height: 6px; border-radius: 3px; background: var(--panel3); margin-top: 6px; overflow: hidden; }
+    .kpi .meter > i { display: block; height: 100%; width: 0; background: var(--brand); border-radius: 3px; transition: width .4s; }
+    .kpi.alert .value { color: var(--bad); }
+    .kpi.warn .value { color: var(--warn); }
+    .clock { text-align: right; }
+    .clock .time { font-size: 38px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .clock .date { font-size: 14px; color: var(--text2); margin-top: 4px; }
+    .sync { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--text2); }
+    .sync .sdot { width: 10px; height: 10px; border-radius: 50%; background: #10b981; }
+    .sync.stale .sdot { background: #fbbf24; }
+    .sync.error .sdot { background: #ef4444; }
+    @media (max-width: 1500px) { header { grid-template-columns: 1fr auto; row-gap: 14px; }
+      header .kpis { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      header .kpi { min-width: 0; } }
+    @media (max-width: 700px) {
+      header { position: static; display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+      .clock { order: -1; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; text-align: left; }
+      .clock .time { font-size: 26px; } .clock .date, .sync { margin: 0; font-size: 12px; }
+      .brand h1 { font-size: 19px; white-space: normal; } .brand-mark { width: 42px; height: 42px; } .brand-mark svg { width: 24px; height: 24px; }
+      header .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .kpi { min-width: 0; padding: 8px 10px; } .kpi .label { white-space: normal; font-size: 10px; line-height: 1.2; min-height: 24px; } .kpi .value { font-size: 22px; }
+    }
+
+    /* ---------- Controls bar + panels ---------- */
     .muted { color: var(--muted); }
     .small { font-size: 12px; }
+    .spacer { flex: 1; }
     select, input, button { font: inherit; color: inherit; }
     select, input[type=text], input[type=password] { background: var(--panel2); border: 1px solid var(--line);
-      border-radius: 8px; padding: 7px 10px; min-height: 36px; }
-    input[type=text]:focus, input[type=password]:focus, select:focus { outline: none; border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft); }
-    header select { font-family: var(--mono); font-weight: 800; background: rgba(57, 135, 229, 0.16); color: #9ec5f4;
-      border-color: rgba(57, 135, 229, 0.45); }
-    header select option { background: var(--header-bg); color: #fff; }
-    button { border: 0; border-radius: 8px; padding: 7px 12px; min-height: 36px; font-weight: 700; cursor: pointer;
-      background: var(--panel2); }
-    button.primary { background: var(--accent); color: #fff; }
-    button.primary:hover { background: var(--accent-hover); }
-    button.ghost { background: transparent; border: 1px solid var(--line); }
+      border-radius: 10px; padding: 7px 10px; min-height: 36px; }
+    input[type=text]:focus, input[type=password]:focus, select:focus { outline: none; border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25); }
+    button { border: 0; border-radius: 10px; padding: 7px 12px; min-height: 36px; font-weight: 700; cursor: pointer; background: var(--panel2); }
+    button.primary { background: var(--brand); color: #0f172a; }
+    button.primary:hover { background: var(--brand-hover); }
+    button.ghost { background: var(--panel); border: 1px solid var(--line); }
     button.ghost:hover { border-color: var(--muted); }
-    header button.ghost { background: var(--panel2); }
-    button.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; border-radius: 6px; }
+    button.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; border-radius: 8px; }
     button:disabled { opacity: .5; cursor: default; }
-    .theme-btn { border-radius: 999px; font-size: 13px; color: var(--text2); }
-    main { padding: 16px 20px 40px; display: grid; gap: 16px; }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
-    .kpi .label { font-size: 12px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-    .kpi .value { font-size: 30px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    main { padding: 16px 24px 40px; display: grid; gap: 16px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--panel); border: 1px solid var(--line);
+      border-radius: 16px; padding: 10px 14px; box-shadow: var(--shadow); }
+    .controls .status { font-size: 12px; color: var(--muted); }
     .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
     @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { main { padding: 12px 12px 32px; } }
     .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
-    .panel h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line);
-      display: flex; align-items: center; gap: 8px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; }
-    .panel h2 .count { color: var(--muted); font-weight: 600; }
-    .panel .body { padding: 10px 14px; }
+    .panel h2 { font-size: 14px; margin: 0; padding: 14px 16px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      color: var(--text2); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .panel h2 .count { color: var(--muted); font-weight: 600; letter-spacing: 0; text-transform: none; }
+    .panel .body { padding: 10px 16px; }
     .scroll { max-height: 420px; overflow: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 8px 10px;
-      position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line); }
+      position: sticky; top: 0; background: var(--panel2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
     td { padding: 8px 10px; border-bottom: 1px solid var(--row-line); vertical-align: top; font-variant-numeric: tabular-nums; }
     td.num, th.num { text-align: right; }
     .task { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1.2fr) auto; gap: 8px 16px;
-      padding: 12px 14px; border-bottom: 1px solid var(--row-line); align-items: center; }
-    .task:last-child { border-bottom: 0; }
+      margin: 0 12px 10px; padding: 12px 14px; border-radius: 12px; background: var(--panel2); border-left: 4px solid var(--idle); align-items: center; }
+    .task.st-prog { border-left-color: var(--ok); } .task.st-open { border-left-color: var(--accent); }
+    .task.st-stalled { border-left-color: var(--warn); } .task.st-closed { opacity: .75; }
     @media (max-width: 700px) { .task { grid-template-columns: 1fr; } }
     .task .title { font-weight: 800; }
-    .bar { height: 10px; background: var(--panel3); border-radius: 99px; overflow: hidden; }
+    .bar { height: 8px; background: var(--panel3); border-radius: 99px; overflow: hidden; }
     .bar > div { height: 100%; background: var(--ok); border-radius: 99px; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
     .b-open { background: var(--accent-soft); color: var(--accent-text); }
@@ -96,19 +133,20 @@
     .pos { color: var(--ok-text); } .neg { color: var(--bad-text); }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 99px; margin-right: 6px; vertical-align: middle; }
     .actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-    .empty { color: var(--muted); padding: 14px; }
+    .empty { color: var(--muted); padding: 4px 16px 16px; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center;
       padding: 16px; z-index: 20; }
     .overlay.hidden, .hidden { display: none !important; }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; width: 100%; max-width: 440px;
-      box-shadow: 0 20px 40px rgba(16, 24, 40, 0.18); }
-    .card h3 { margin: 0 0 6px; font-size: 20px; }
-    .stack { display: grid; gap: 10px; }
-    .msg { padding: 9px 12px; border-radius: 8px; font-size: 13px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px; width: 100%; max-width: 460px; color: var(--text); }
+    .card h3 { margin: 0 0 6px; font-size: 22px; }
+    .stack { display: grid; gap: 12px; }
+    #gate-code { font-family: var(--mono); font-size: 18px; padding: 10px 12px; border-width: 2px; border-radius: 12px; }
+    #gate-btn { font-size: 16px; font-weight: 800; padding: 11px; border-radius: 12px; }
+    .msg { padding: 9px 12px; border-radius: 10px; font-size: 13px; }
     .msg.err { background: var(--bad-soft); color: var(--bad-text); }
     .msg.ok { background: var(--ok-soft); color: var(--ok-text); }
-    label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+    label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text2); }
     .err-banner { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 50; padding: 10px 12px; border-radius: 10px;
       background: #b91c1c; color: #fff; font: 12px/1.4 monospace; white-space: pre-wrap; }
   </style>
@@ -150,34 +188,51 @@
   </div>
 
   <header>
-    <h1>CycleCount<span>Pro</span> · Monitoring Center</h1>
-    <div class="spacer"></div>
-    <div class="toolbar">
-      <select id="f-wh" title="Warehouse">
-        <option value="">All warehouses</option>
-        <option value="ONUS-ONT">ONUS-ONT</option>
-        <option value="ONUS-Chino">ONUS-Chino</option>
-      </select>
-      <label class="chk"><input id="f-closed" type="checkbox" /> Show completed</label>
-      <label class="chk"><input id="f-auto" type="checkbox" checked /> Auto-refresh</label>
-      <button id="refresh-btn" class="ghost" type="button">Refresh</button>
-      <button id="assign-btn" class="primary" type="button">+ Assign task</button>
-      <button id="archive-btn" class="ghost" type="button" title="Move counts and closed tasks older than 90 days to the archive spreadsheet">Archive…</button>
-      <button id="lock-btn" class="ghost" type="button" title="Forget the access code on this device">Lock</button>
-      <button id="theme-btn" class="ghost theme-btn" type="button" title="Switch light / dark (shortcut: T)">☾ Dark theme</button>
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>CycleCount<span>Pro</span> — Monitoring</h1>
+        <div class="sub">
+          <select id="f-wh" class="wh-chip" title="Warehouse">
+            <option value="">All warehouses</option>
+            <option value="ONUS-ONT">ONUS-ONT</option>
+            <option value="ONUS-Chino">ONUS-Chino</option>
+          </select>
+          <span>Count tasks &amp; variances</span>
+          <button id="theme-btn" class="theme-btn" type="button" title="Switch light / dark (shortcut: T)">☾ Dark theme</button>
+        </div>
+      </div>
     </div>
-    <div class="small muted" style="width:100%">Updated <span id="updated">—</span> · <span id="status-line"></span><span id="archive-line"></span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Active tasks</div><div class="value" id="k-active">–</div></div>
+      <div class="kpi"><div class="label">Pallets counted</div><div class="value" id="k-counted">–</div></div>
+      <div class="kpi"><div class="label">Progress</div><div class="value" id="k-progress">–</div><div class="meter"><i id="k-progress-bar"></i></div></div>
+      <div class="kpi"><div class="label">Counters active</div><div class="value" id="k-counters">–</div></div>
+      <div class="kpi alert"><div class="label">Variances</div><div class="value" id="k-var">–</div></div>
+      <div class="kpi warn"><div class="label">Double-counted</div><div class="value" id="k-dup">–</div></div>
+    </div>
+    <div class="clock">
+      <div class="time" id="clock-time">--:--</div>
+      <div class="date" id="clock-date"></div>
+      <div class="sync" id="sync"><span class="sdot"></span><span id="sync-text">Connecting…</span></div>
+    </div>
   </header>
 
   <main id="dash">
-    <section class="kpis">
-      <div class="kpi"><div class="label">Active tasks</div><div class="value" id="k-active">–</div></div>
-      <div class="kpi"><div class="label">Pallets counted (active tasks)</div><div class="value" id="k-counted">–</div></div>
-      <div class="kpi"><div class="label">Overall progress</div><div class="value" id="k-progress">–</div></div>
-      <div class="kpi"><div class="label">Counters active (15 min)</div><div class="value" id="k-counters">–</div></div>
-      <div class="kpi"><div class="label">Variances</div><div class="value" id="k-var" style="color:var(--bad)">–</div></div>
-      <div class="kpi"><div class="label">Double-counted pallets</div><div class="value" id="k-dup" style="color:var(--warn)">–</div></div>
-    </section>
+    <div class="controls">
+      <label class="chk"><input id="f-closed" type="checkbox" /> Show completed</label>
+      <label class="chk"><input id="f-auto" type="checkbox" checked /> Auto-refresh</label>
+      <span class="status">Updated <span id="updated">—</span> · <span id="status-line"></span><span id="archive-line"></span></span>
+      <span class="spacer"></span>
+      <button id="refresh-btn" class="ghost" type="button">Refresh</button>
+      <button id="archive-btn" class="ghost" type="button" title="Move counts and closed tasks older than 90 days to the archive spreadsheet">Archive…</button>
+      <button id="lock-btn" class="ghost" type="button" title="Forget the access code on this device">Lock</button>
+      <button id="assign-btn" class="primary" type="button">+ Assign task</button>
+    </div>
 
     <div class="grid2">
       <section class="panel">
@@ -375,11 +430,13 @@
         if (!res || !res.ok) {
           if (res && res.authError) { store(CODE_KEY, null); mon.code = ''; showGate(res.error); return; }
           $('status-line').textContent = 'Refresh failed: ' + (res && res.error ? res.error : 'unknown error');
+          mon.syncError = true; renderSync();
           return;
         }
         render(res);
       }).catch(function (err) {
         $('status-line').textContent = 'Refresh failed: ' + err.message + ' (will retry)';
+        mon.syncError = true; renderSync();
       }).then(function () { mon.loading = false; });
     }
 
@@ -396,6 +453,7 @@
       }
       mon.data = data;
       $('updated').textContent = new Date(data.generatedAt).toLocaleTimeString();
+      mon.lastOkAt = Date.now(); mon.syncError = false; renderSync();
       $('status-line').textContent = $('f-auto').checked ? 'auto-refresh every 30 s' : 'auto-refresh off';
       var wh = $('f-wh').value;
       var showClosed = $('f-closed').checked;
@@ -418,6 +476,7 @@
       $('k-active').textContent = active.length;
       $('k-counted').textContent = counted;
       $('k-progress').textContent = expected ? Math.round(done / expected * 100) + '%' : '—';
+      $('k-progress-bar').style.width = (expected ? Math.round(done / expected * 100) : 0) + '%';
       $('k-counters').textContent = counters.filter(function (c) { return minutesSince(c.lastActivity) <= 15; }).length;
       $('k-var').textContent = variances.length;
       $('k-dup').textContent = dups.length;
@@ -429,6 +488,27 @@
       renderDups(dups);
       renderRecent((data.recent || []).filter(inWh));
     }
+
+    // Header clock and "Live · updated Xs ago", as on the Outbound Staging dashboard.
+    function renderClock() {
+      var now = new Date();
+      if (!$('clock-time')) return;
+      $('clock-time').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      $('clock-date').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+      renderSync();
+    }
+    function renderSync() {
+      var el = $('sync'), txt = $('sync-text');
+      if (!el || !txt) return;
+      if (!mon.lastOkAt) { el.className = 'sync' + (mon.syncError ? ' error' : ''); txt.textContent = mon.syncError ? 'Cannot load data' : (mon.code ? 'Connecting…' : 'Locked'); return; }
+      var sec = Math.max(0, Math.round((Date.now() - mon.lastOkAt) / 1000));
+      var ago = sec < 60 ? sec + 's ago' : Math.round(sec / 60) + ' min ago';
+      var stale = sec > 120;
+      el.className = 'sync' + (mon.syncError ? ' error' : stale ? ' stale' : '');
+      txt.textContent = (mon.syncError ? 'Offline · last data ' : stale ? 'Stale · updated ' : 'Live · updated ') + ago;
+    }
+    renderClock();
+    setInterval(renderClock, 1000);
 
     function statusBadge(t) {
       var cls = { 'Open': 'b-open', 'In Progress': 'b-prog', 'Completed': 'b-done', 'Cancelled': 'b-cancel' }[t.status] || 'b-open';
@@ -497,7 +577,9 @@
           ? t.countedExpected + ' / ' + t.expected + ' pallets (' + pct + '%)'
           : (t.counted ? t.counted + ' counted · no pallet list yet' : 'Waiting for the counter to pull inventory');
         var open = t.status === 'Open' || t.status === 'In Progress';
-        return '<div class="task">' +
+        var stalled = t.status === 'In Progress' && minutesSince(t.lastActivity || t.startedAt) > STALL_MIN;
+        var stCls = !open ? 'st-closed' : stalled ? 'st-stalled' : t.status === 'In Progress' ? 'st-prog' : 'st-open';
+        return '<div class="task ' + stCls + '">' +
           '<div><div class="title"><span class="mono">' + esc(t.customerNo) + '</span> <span class="muted" style="font-weight:600">' + esc(t.customerName) + '</span></div>' +
             '<div class="small muted">' + esc(t.warehouseId) + ' · ' + esc(t.taskId) + (t.locations ? ' · ' + esc(t.locations) : '') + '</div>' +
             '<div class="small" style="margin-top:4px">' + statusBadge(t) + ' <span class="muted">' +
@@ -703,6 +785,7 @@
         store(CODE_KEY, null); mon.code = ''; mon.data = null; stopTimer();
         $('dash').classList.add('hidden');
         $('updated').textContent = '—';
+        mon.lastOkAt = 0; mon.syncError = false; renderSync();
         showGate('');
       });
       $('tasks').addEventListener('click', onTaskClick);
