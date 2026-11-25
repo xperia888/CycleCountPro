@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.4';
+    window.CCP_BUILD = '2026-11-25.5';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -583,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.4</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.5</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -1261,6 +1261,30 @@
       return '';
     }
 
+    // Token sent as a response header. The browser only shows headers the WMS lists in
+    // Access-Control-Expose-Headers, so every readable header with a token-like name is tried.
+    function tokenFromHeaders(headers) {
+      const named = ['authorization', 'token', 'x-token', 'x-auth-token', 'access-token', 'x-access-token',
+        'accesstoken', 'access_token', 'auth-token', 'authtoken', 'jwt', 'x-jwt'];
+      for (const n of named) {
+        const v = headers.get?.(n);
+        if (v && v.trim().length > 8) return v.trim();
+      }
+      let found = '';
+      try {
+        headers.forEach?.((v, k) => {
+          if (!found && /token|auth|jwt|session/i.test(k) && String(v).trim().length > 8) found = String(v).trim();
+        });
+      } catch (e) { /* ignore */ }
+      return found;
+    }
+
+    function readableHeaderNames(headers) {
+      const names = [];
+      try { headers?.forEach?.((v, k) => names.push(k)); } catch (e) { /* ignore */ }
+      return names;
+    }
+
     // Field names only (never values), for error messages: "code, message, data{token, user{...}}".
     function describeShape(obj, depth = 0) {
       if (!obj || typeof obj !== 'object') return '';
@@ -1296,10 +1320,7 @@
         token = raw.data.trim();
       }
       if (!token) token = findTokenDeep(raw);
-      if (!token && headers) {
-        const hdrAuth = headers.get?.('authorization') || headers.get?.('x-auth-token') || headers.get?.('token') || '';
-        if (hdrAuth.trim()) token = hdrAuth.trim();
-      }
+      if (!token && headers) token = tokenFromHeaders(headers);
       token = token.replace(/^Bearer\s+/i, '').trim();
 
       const whListRaw = dataObj?.warehouses || dataObj?.warehouseList || raw?.warehouses || [];
@@ -1339,7 +1360,10 @@
           if (!res.ok || !saidOk) {
             throw new Error(msg ? `WMS: ${msg}` : `WMS login failed (HTTP ${res.status})`);
           }
-          throw new Error(`WMS said "${msg}" but sent no token the app can use. Reply fields: ${describeShape(raw) || 'none'}. Send this message to support.`);
+          const hdrs = readableHeaderNames(res.headers);
+          throw new Error(`WMS said "${msg}" but sent no token the app can read. Reply fields: ${describeShape(raw) || 'none'}. `
+            + `Headers the browser can read: ${hdrs.join(', ') || 'none'}. The token is probably in a response header the WMS `
+            + `does not expose to web pages (Access-Control-Expose-Headers) or in a cookie. Send this message to support.`);
         };
 
         const attemptProxy = async () => {
