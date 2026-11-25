@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-23.2';
+    window.CCP_BUILD = '2026-11-25.1';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -134,25 +134,25 @@
     }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-150 selection:bg-indigo-600 selection:text-white">
+<body class="bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-150 selection:bg-amber-400 selection:text-white">
 
   <!-- Toast Container (Replaces alert()) -->
   <div id="toast-container" class="fixed bottom-3 right-3 z-50 flex flex-col gap-2 max-w-sm w-[calc(100%-1.5rem)] sm:w-full pointer-events-none"></div>
 
   <!-- Top Navigation & Warehouse Selector Header (Auto-sizing for TC56 360px PDA) -->
-  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-sm no-print">
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md no-print">
     <div class="max-w-[1600px] mx-auto px-2.5 sm:px-6 py-1.5 sm:py-2 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
       <!-- Brand + Active Source + Warehouse Selector -->
       <div class="flex items-center gap-2 min-w-0 flex-1">
-        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 shadow-sm shrink-0">
           <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 12h10"></path>
           </svg>
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 flex-wrap">
-            <h1 class="font-extrabold text-xs sm:text-base tracking-tight text-white">CycleCount<span class="text-indigo-400">Pro</span> <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 align-middle">v2</span></h1>
-            <select id="header-wh-select" title="Active Warehouse ID (warehouseId)" class="bg-slate-800 text-indigo-300 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-700 focus:outline-none max-w-[115px] sm:max-w-none">
+            <h1 class="font-extrabold text-xs sm:text-base tracking-tight text-white">CycleCount<span class="text-amber-400">Pro</span> <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 align-middle">v2</span></h1>
+            <select id="header-wh-select" title="Active Warehouse ID (warehouseId)" class="bg-sky-500/20 text-sky-300 font-mono text-[11px] font-extrabold px-1.5 py-0.5 rounded border border-sky-500/40 focus:outline-none max-w-[115px] sm:max-w-none">
               <option value="ONUS-ONT">ONUS-ONT</option>
               <option value="ONUS-Chino">ONUS-Chino</option>
             </select>
@@ -170,8 +170,8 @@
       <!-- Toolbar Buttons (Auto-sized touch targets that never overlap on TC56) -->
       <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <!-- Import Report -->
-        <button id="open-import-btn" type="button" title="Import Report" class="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition min-h-[34px] sm:min-h-[38px]">
-          <svg class="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+        <button id="open-import-btn" type="button" title="Import Report" class="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white border border-sky-500 transition min-h-[34px] sm:min-h-[38px]">
+          <svg class="w-3.5 h-3.5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           <span class="hidden sm:inline">Import</span>
         </button>
 
@@ -182,7 +182,7 @@
         </button>
 
         <!-- Final Report -->
-        <button id="open-report-btn" type="button" class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition min-h-[34px] sm:min-h-[38px]">
+        <button id="open-report-btn" type="button" class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-extrabold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition min-h-[34px] sm:min-h-[38px]">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           <span>Report</span>
         </button>
@@ -206,21 +206,21 @@
   <main class="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-6 py-2 sm:py-4 space-y-2.5 sm:space-y-3 no-print">
 
     <!-- COUNT TASK BAR: which customer / task this device is counting -->
-    <div id="task-bar" class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 rounded-2xl px-3 py-2 border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div id="task-bar" class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-800 shadow-sm">
       <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Task</span>
       <span id="task-bar-label" class="text-xs font-semibold flex-1 min-w-0 truncate">No task selected</span>
-      <span id="task-bar-progress" class="hidden text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"></span>
-      <button id="open-task-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white min-h-[34px]">Pick task</button>
+      <span id="task-bar-progress" class="hidden text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300"></span>
+      <button id="open-task-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 min-h-[34px]">Pick task</button>
     </div>
 
     <!-- FIRST SECTION (TC56 PDA One-Screen Ergonomics): Scanner Console & Physical Count Workspace -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 items-start">
 
       <!-- 1. Scanner Mode Switcher + Barcode Input Card -->
-      <div id="scanner-console-card" class="lg:col-span-5 min-w-0 bg-white dark:bg-slate-900 rounded-2xl p-2.5 sm:p-4 border-2 border-indigo-500/40 shadow-md space-y-2">
+      <div id="scanner-console-card" class="lg:col-span-5 min-w-0 bg-white dark:bg-slate-900 rounded-xl p-2.5 sm:p-4 border-2 border-amber-400/50 shadow-md space-y-2">
         <!-- Mode Toggle Tabs -->
-        <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
-          <button id="mode-lp-btn" type="button" class="py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-600 text-white shadow-sm transition min-h-[36px] truncate">
+        <div class="grid grid-cols-2 gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+          <button id="mode-lp-btn" type="button" class="py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950 shadow-sm transition min-h-[36px] truncate">
             1. Scan Pallet LP
           </button>
           <button id="mode-nolp-btn" type="button" class="py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800 transition min-h-[36px] truncate">
@@ -231,19 +231,19 @@
         <!-- MODE A: SCAN PALLET LICENSE PLATE (LP) -->
         <div id="lp-scanner-section" class="space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 truncate">Scan Pallet LP</span>
-            <span class="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0" id="tc56-compact-progress">0/0 Audited</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400 truncate">Scan Pallet LP</span>
+            <span class="text-[11px] font-mono font-bold text-sky-700 dark:text-sky-400 shrink-0" id="tc56-compact-progress">0/0 Audited</span>
           </div>
           <form id="lp-scan-form" class="flex gap-1.5 min-w-0">
             <div class="relative flex-1 min-w-0">
               <input id="lp-scan-input" type="text" autocomplete="off" autocapitalize="characters" enterkeyhint="next" autofocus
                 placeholder="Scan LP..."
-                class="w-full pl-2.5 pr-7 py-2 rounded-xl font-mono text-sm sm:text-base font-bold uppercase bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:outline-none min-h-[42px]" />
+                class="w-full pl-2.5 pr-7 py-2 rounded-lg font-mono text-sm sm:text-base font-bold uppercase bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-amber-500 focus:outline-none min-h-[42px]" />
               <button id="clear-lp-input-btn" type="button" title="Clear" class="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
-            <button type="submit" class="px-3.5 sm:px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-sm transition min-h-[42px] shrink-0">
+            <button type="submit" class="px-3.5 sm:px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 font-bold text-xs sm:text-sm shadow-sm transition min-h-[42px] shrink-0">
               Scan
             </button>
           </form>
@@ -252,7 +252,7 @@
           <div>
             <div class="flex items-center justify-between mb-1">
               <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Pending LPs:</span>
-              <button id="next-pending-lp-btn" type="button" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Next Pending &rarr;</button>
+              <button id="next-pending-lp-btn" type="button" class="text-[11px] font-bold text-sky-700 dark:text-sky-400 hover:underline">Next Pending &rarr;</button>
             </div>
             <div id="quick-lp-chips" class="flex flex-wrap gap-1"></div>
           </div>
@@ -271,8 +271,8 @@
             <div class="flex gap-1.5">
               <input id="nolp-item-input" type="text" list="sku-catalog-datalist" autocomplete="off" enterkeyhint="next"
                 placeholder="Scan UPC, SKU, or Name..."
-                class="flex-1 min-w-0 px-3 py-2 rounded-xl font-mono text-sm font-semibold bg-slate-50 dark:bg-slate-850 border-2 border-purple-400/60 dark:border-purple-600/60 focus:border-purple-600 focus:outline-none min-h-[42px]" />
-              <button type="submit" class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs min-h-[42px] shrink-0">
+                class="flex-1 min-w-0 px-3 py-2 rounded-lg font-mono text-sm font-semibold bg-slate-50 dark:bg-slate-850 border-2 border-purple-400/60 dark:border-purple-600/60 focus:border-purple-600 focus:outline-none min-h-[42px]" />
+              <button type="submit" class="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs min-h-[42px] shrink-0">
                 Select
               </button>
             </div>
@@ -280,7 +280,7 @@
           </form>
 
           <!-- SKU System Stock Summary Banner (when item matched) -->
-          <div id="nolp-sku-summary-box" class="hidden p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 space-y-1">
+          <div id="nolp-sku-summary-box" class="hidden p-2.5 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 space-y-1">
             <div class="flex items-center justify-between gap-2">
               <span id="nolp-matched-sku" class="font-mono text-xs font-extrabold text-purple-700 dark:text-purple-300">SKU</span>
               <span id="nolp-known-bays" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">Bays: --</span>
@@ -309,26 +309,26 @@
                 <label for="nolp-location-input" class="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">2. Store Location</label>
                 <input id="nolp-location-input" type="text" autocomplete="off" autocapitalize="characters" enterkeyhint="next" required
                   placeholder="e.g. S007"
-                  class="w-full px-3 py-2 rounded-xl font-mono text-sm font-bold uppercase bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none min-h-[42px]" />
+                  class="w-full px-3 py-2 rounded-lg font-mono text-sm font-bold uppercase bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none min-h-[42px]" />
               </div>
               <div class="min-w-0">
                 <label for="nolp-qty-input" class="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">3. Physical Qty</label>
                 <input id="nolp-qty-input" type="number" inputmode="numeric" min="0" step="1" enterkeyhint="done" required
                   placeholder="0"
-                  class="w-full px-3 py-2 rounded-xl font-mono text-base font-extrabold text-center bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none min-h-[42px]" />
+                  class="w-full px-3 py-2 rounded-lg font-mono text-base font-extrabold text-center bg-slate-50 dark:bg-slate-850 border-2 border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none min-h-[42px]" />
               </div>
             </div>
 
             <div>
-              <select id="nolp-link-lp-select" class="w-full px-2.5 py-1.5 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none">
+              <select id="nolp-link-lp-select" class="w-full px-2.5 py-1.5 rounded-lg font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-purple-600 focus:outline-none">
                 <option value="">-- Standalone Missing-LP (NO-LP-XXX) --</option>
               </select>
             </div>
 
             <div class="flex gap-1.5">
               <input id="nolp-notes-input" type="text" placeholder="Optional note..."
-                class="flex-1 min-w-0 px-2.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:outline-none" />
-              <button type="submit" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition min-h-[42px] shrink-0">
+                class="flex-1 min-w-0 px-2.5 py-2 rounded-lg text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:outline-none" />
+              <button type="submit" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition min-h-[42px] shrink-0">
                 Save No-LP
               </button>
             </div>
@@ -337,10 +337,10 @@
       </div>
 
       <!-- 2. System vs Physical Count Card (Right beside Scanner on Desktop, Immediately below on TC56 PDA) -->
-      <div class="lg:col-span-7 min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div class="lg:col-span-7 min-w-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div id="comparison-empty-state" class="p-3.5 sm:p-6 text-center flex flex-col items-center justify-center">
           <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-            <svg class="w-5 h-5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+            <svg class="w-5 h-5 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
             <h3 class="text-sm font-bold">Ready for Pallet Scan</h3>
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
@@ -353,7 +353,7 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span id="comp-lpn" class="font-mono text-sm sm:text-lg font-extrabold tracking-tight">LP000000</span>
-                <span id="comp-wh-tag" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/25 text-indigo-300">WH: ONUS-ONT</span>
+                <span id="comp-wh-tag" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/25 text-sky-300">WH: ONUS-ONT</span>
                 <span id="comp-inbound-tag" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">INB: --</span>
                 <span id="comp-po-tag" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">PO: --</span>
               </div>
@@ -365,26 +365,26 @@
           <!-- Compact System Record Snapshot -->
           <div class="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 space-y-2">
             <div class="grid grid-cols-4 gap-1 sm:gap-1.5 text-center">
-              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
                 <span class="text-[10px] text-slate-400 block truncate">Sys Loc</span>
                 <span id="comp-sys-loc" class="font-mono text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 block truncate">--</span>
               </div>
-              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
                 <span class="text-[10px] text-slate-400 block truncate">Actual</span>
-                <span id="comp-sys-actual" class="font-mono text-xs sm:text-sm font-extrabold text-indigo-600 dark:text-indigo-400 block truncate">0</span>
+                <span id="comp-sys-actual" class="font-mono text-xs sm:text-sm font-extrabold text-sky-700 dark:text-sky-400 block truncate">0</span>
               </div>
-              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
                 <span class="text-[10px] text-slate-400 block truncate">Alloc</span>
                 <span id="comp-sys-alloc" class="font-mono text-xs sm:text-sm font-extrabold text-amber-600 block truncate">0</span>
               </div>
-              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+              <div class="min-w-0 bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
                 <span class="text-[10px] text-slate-400 block truncate">Rem</span>
                 <span id="comp-sys-rem" class="font-mono text-xs sm:text-sm font-extrabold text-sky-600 block truncate">0</span>
               </div>
             </div>
-            <div class="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center justify-between gap-2 min-w-0">
+            <div class="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center justify-between gap-2 min-w-0">
               <div class="min-w-0 truncate">
-                <span id="comp-sys-sku" class="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 mr-1.5">SKU</span>
+                <span id="comp-sys-sku" class="font-mono text-xs font-extrabold text-sky-700 dark:text-sky-400 mr-1.5">SKU</span>
                 <span id="comp-sys-name" class="text-xs font-semibold text-slate-700 dark:text-slate-200">Item Name</span>
               </div>
               <span id="comp-sys-barcode" class="hidden font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">UPC</span>
@@ -402,12 +402,12 @@
                 </div>
               </div>
               <div class="flex items-center gap-1 min-w-0">
-                <button id="qty-minus-btn" type="button" class="px-2.5 sm:px-3 py-2 rounded-xl font-mono text-base font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px] shrink-0">-</button>
+                <button id="qty-minus-btn" type="button" class="px-2.5 sm:px-3 py-2 rounded-lg font-mono text-base font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px] shrink-0">-</button>
                 <input id="phys-qty-input" type="number" inputmode="numeric" min="0" step="1" enterkeyhint="done" required
-                  class="flex-1 min-w-[54px] text-center py-2 rounded-xl font-mono text-base sm:text-lg font-extrabold bg-white dark:bg-slate-850 border-2 border-indigo-500 focus:outline-none min-h-[42px]" />
-                <button id="qty-plus-btn" type="button" class="px-2.5 sm:px-3 py-2 rounded-xl font-mono text-base font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px] shrink-0">+</button>
-                <button id="match-actual-qty-btn" type="button" class="px-1.5 sm:px-2 py-2 rounded-xl text-[10px] sm:text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 min-h-[42px] shrink-0">=Act</button>
-                <button id="match-rem-qty-btn" type="button" class="px-1.5 sm:px-2 py-2 rounded-xl text-[10px] sm:text-[11px] font-bold bg-sky-50 hover:bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 min-h-[42px] shrink-0">=Rem</button>
+                  class="flex-1 min-w-[54px] text-center py-2 rounded-lg font-mono text-base sm:text-lg font-extrabold bg-white dark:bg-slate-850 border-2 border-amber-500 focus:outline-none min-h-[42px]" />
+                <button id="qty-plus-btn" type="button" class="px-2.5 sm:px-3 py-2 rounded-lg font-mono text-base font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-h-[42px] shrink-0">+</button>
+                <button id="match-actual-qty-btn" type="button" class="px-1.5 sm:px-2 py-2 rounded-lg text-[10px] sm:text-[11px] font-bold bg-sky-50 hover:bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 min-h-[42px] shrink-0">=Act</button>
+                <button id="match-rem-qty-btn" type="button" class="px-1.5 sm:px-2 py-2 rounded-lg text-[10px] sm:text-[11px] font-bold bg-sky-50 hover:bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 min-h-[42px] shrink-0">=Rem</button>
               </div>
             </div>
 
@@ -415,17 +415,17 @@
               <div class="min-w-0">
                 <label for="phys-loc-input" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5 truncate">2. Actual Location</label>
                 <input id="phys-loc-input" type="text" autocomplete="off" autocapitalize="characters" required
-                  class="w-full px-2.5 py-2 rounded-xl font-mono text-xs font-bold uppercase bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:outline-none min-h-[40px]" />
+                  class="w-full px-2.5 py-2 rounded-lg font-mono text-xs font-bold uppercase bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-amber-500 focus:outline-none min-h-[40px]" />
               </div>
               <div class="min-w-0">
                 <label for="phys-item-input" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5 truncate">3. Observed Item</label>
                 <input id="phys-item-input" type="text" required
-                  class="w-full px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:outline-none min-h-[40px]" />
+                  class="w-full px-2.5 py-2 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 focus:border-amber-500 focus:outline-none min-h-[40px]" />
               </div>
             </div>
 
             <!-- Collapsible Optional Variance Reason & Notes (keeps primary controls visible on one TC56 screen) -->
-            <details class="group rounded-xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 px-2.5 py-1.5">
+            <details class="group rounded-lg bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 px-2.5 py-1.5">
               <summary class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none flex items-center justify-between">
                 <span>Optional: Variance Reason &amp; Audit Notes</span>
                 <span class="text-[10px] font-mono group-open:rotate-180 transition-transform">&#9662;</span>
@@ -433,7 +433,7 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 pb-1">
                 <div>
                   <label for="phys-reason-select" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">Variance Reason</label>
-                  <select id="phys-reason-select" class="w-full px-2.5 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
+                  <select id="phys-reason-select" class="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
                     <option value="">None / Exact Match</option>
                     <option value="Unrecorded Pick">Unrecorded Pick</option>
                     <option value="Pallet Relocated">Pallet Relocated</option>
@@ -445,16 +445,16 @@
                 <div>
                   <label for="phys-notes-input" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">Notes</label>
                   <input id="phys-notes-input" type="text" placeholder="Optional audit note..."
-                    class="w-full px-2.5 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+                    class="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
                 </div>
               </div>
             </details>
 
             <div class="flex items-center gap-2 pt-0.5">
-              <button type="submit" class="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-sm transition min-h-[42px]">
+              <button type="submit" class="flex-1 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-sm transition min-h-[42px]">
                 Save Count &amp; Scan Next LP
               </button>
-              <button id="cancel-comp-btn" type="button" class="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs sm:text-sm min-h-[42px] shrink-0">
+              <button id="cancel-comp-btn" type="button" class="py-2.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs sm:text-sm min-h-[42px] shrink-0">
                 Cancel
               </button>
             </div>
@@ -465,21 +465,21 @@
 
     <!-- SECOND SECTION: Compact TC56-Friendly KPI Strip -->
     <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div class="flex items-center justify-between">
           <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Audit Progress</span>
-          <span id="kpi-progress-pct" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">0%</span>
+          <span id="kpi-progress-pct" class="text-[11px] font-bold text-sky-700 dark:text-sky-400">0%</span>
         </div>
         <div class="mt-1 flex items-baseline justify-between">
-          <span id="kpi-counted-pallets" class="text-xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">0/0</span>
+          <span id="kpi-counted-pallets" class="text-xl font-extrabold font-mono text-sky-700 dark:text-sky-400">0/0</span>
           <span class="text-[11px] text-slate-400">pallets</span>
         </div>
         <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
-          <div id="kpi-progress-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+          <div id="kpi-progress-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
         <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Sys Actual Qty</span>
         <div class="mt-1 flex items-baseline justify-between">
           <span id="kpi-sys-actual" class="text-xl font-extrabold font-mono text-slate-800 dark:text-slate-100">0</span>
@@ -487,7 +487,7 @@
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
         <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Allocation Qty</span>
         <div class="mt-1 flex items-baseline justify-between">
           <span id="kpi-sys-alloc" class="text-xl font-extrabold font-mono text-amber-600 dark:text-amber-400">0</span>
@@ -495,7 +495,7 @@
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
         <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Remaining Qty</span>
         <div class="mt-1 flex items-baseline justify-between">
           <span id="kpi-sys-rem" class="text-xl font-extrabold font-mono text-sky-600 dark:text-sky-400">0</span>
@@ -503,7 +503,7 @@
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
         <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Physical Counted</span>
         <div class="mt-1 flex items-baseline justify-between">
           <span id="kpi-phys-counted" class="text-xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">0</span>
@@ -511,7 +511,7 @@
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm">
         <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Variances</span>
         <div class="mt-1 flex items-baseline justify-between">
           <span id="kpi-variances" class="text-xl font-extrabold font-mono text-rose-600 dark:text-rose-400">0</span>
@@ -521,7 +521,7 @@
     </section>
 
     <!-- THIRD SECTION: Live Pallet Audit Ledger (Supports Text Select, Copy & Paste) -->
-    <div id="ledger-panel" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden select-text">
+    <div id="ledger-panel" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden select-text">
       <div class="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -529,19 +529,19 @@
             <p class="text-xs text-slate-500 dark:text-slate-400">Highlight any text + Ctrl+C, click copy icons, or paste an LP/SKU to filter</p>
           </div>
           <div class="flex items-center gap-2 w-full sm:w-auto">
-            <button id="copy-visible-ledger-btn" type="button" title="Copy visible ledger rows (TSV for Excel)" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition shrink-0">
+            <button id="copy-visible-ledger-btn" type="button" title="Copy visible ledger rows (TSV for Excel)" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition shrink-0">
               Copy Table
             </button>
             <div class="relative flex-1 sm:w-56">
               <input id="ledger-search-input" type="text" placeholder="Search LP, Loc, SKU, Inbound..."
-                class="w-full pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none" />
+                class="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 focus:border-amber-500 focus:outline-none" />
               <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
-          <button type="button" data-ledger-filter="ALL" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm">
+        <div class="flex flex-wrap gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+          <button type="button" data-ledger-filter="ALL" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-400 shadow-sm">
             All (<span id="cnt-all">0</span>)
           </button>
           <button type="button" data-ledger-filter="PENDING" class="ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400">
@@ -579,13 +579,13 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-23.2</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.1</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
   <!-- ======================================================================= -->
   <div id="task-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
       <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
         <div>
           <h3 id="task-modal-title" class="text-base font-bold">Count Tasks</h3>
@@ -594,20 +594,20 @@
         <button type="button" data-close-modal="task-modal" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" aria-label="Close">✕</button>
       </div>
       <div class="p-4 space-y-4 overflow-y-auto">
-        <div id="task-current-box" class="hidden p-3 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 space-y-2">
-          <div class="text-[11px] font-bold uppercase text-indigo-600 dark:text-indigo-300">Current task</div>
+        <div id="task-current-box" class="hidden p-3 rounded-lg border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 space-y-2">
+          <div class="text-[11px] font-bold uppercase text-sky-700 dark:text-sky-300">Current task</div>
           <div id="task-current-text" class="text-sm font-semibold"></div>
           <div class="flex flex-wrap gap-2">
-            <button id="task-pull-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[34px]">Pull this customer from WMS</button>
-            <button id="task-complete-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white min-h-[34px]">Mark task complete</button>
-            <button id="task-leave-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 min-h-[34px]">Stop working on task</button>
+            <button id="task-pull-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[34px]">Pull this customer from WMS</button>
+            <button id="task-complete-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white min-h-[34px]">Mark task complete</button>
+            <button id="task-leave-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 min-h-[34px]">Stop working on task</button>
           </div>
         </div>
 
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold">Tasks for you in <span id="task-wh-label" class="font-mono"></span></span>
-            <button id="task-refresh-btn" type="button" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Refresh</button>
+            <button id="task-refresh-btn" type="button" class="text-[11px] font-bold text-sky-700 dark:text-sky-400 hover:underline">Refresh</button>
           </div>
           <div id="task-list" class="space-y-2 text-xs"></div>
         </div>
@@ -615,13 +615,13 @@
         <div class="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
           <div class="text-xs font-bold">Or start your own task</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <input id="task-new-customer-no" type="text" placeholder="Customer No. (e.g. ONUS-001)" class="px-2.5 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
-            <input id="task-new-customer-name" type="text" placeholder="Customer name (optional)" class="px-2.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
-            <input id="task-new-locations" type="text" placeholder="Locations (optional, comma separated)" class="sm:col-span-2 px-2.5 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            <input id="task-new-customer-no" type="text" placeholder="Customer No. (e.g. ONUS-001)" class="px-2.5 py-2 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            <input id="task-new-customer-name" type="text" placeholder="Customer name (optional)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+            <input id="task-new-locations" type="text" placeholder="Locations (optional, comma separated)" class="sm:col-span-2 px-2.5 py-2 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
           </div>
-          <button id="task-create-btn" type="button" class="w-full px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white min-h-[38px]">Create &amp; start task</button>
+          <button id="task-create-btn" type="button" class="w-full px-3 py-2 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 min-h-[38px]">Create &amp; start task</button>
         </div>
-        <div id="task-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium border"></div>
+        <div id="task-feedback" class="hidden p-2.5 rounded-lg text-xs font-medium border"></div>
       </div>
     </div>
   </div>
@@ -630,7 +630,7 @@
   <!-- BACKUP PROMPT: shown before new data is loaded over existing data          -->
   <!-- ======================================================================= -->
   <div id="backup-prompt-modal" class="fixed inset-0 z-[60] hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="backup-prompt-title">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
       <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
         <h3 id="backup-prompt-title" class="text-base font-bold">Back up current data first?</h3>
       </div>
@@ -639,9 +639,9 @@
         <p id="backup-prompt-sync" class="text-xs"></p>
       </div>
       <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-2 sm:justify-end">
-        <button id="backup-prompt-cancel" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 min-h-[40px]">Cancel</button>
-        <button id="backup-prompt-skip" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white min-h-[40px]">Continue without backup</button>
-        <button id="backup-prompt-export" type="button" class="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[40px]">Export backup &amp; continue</button>
+        <button id="backup-prompt-cancel" type="button" class="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 min-h-[40px]">Cancel</button>
+        <button id="backup-prompt-skip" type="button" class="px-3 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white min-h-[40px]">Continue without backup</button>
+        <button id="backup-prompt-export" type="button" class="px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white min-h-[40px]">Export backup &amp; continue</button>
       </div>
     </div>
   </div>
@@ -650,7 +650,7 @@
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
   <!-- ======================================================================= -->
   <div id="import-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
       <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
         <div>
           <h3 class="text-base font-bold">Import `stock_by_inventory` Report</h3>
@@ -661,17 +661,17 @@
         </button>
       </div>
       <div class="p-5 space-y-4">
-        <label for="file-upload-input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 rounded-2xl p-6 cursor-pointer bg-slate-50 dark:bg-slate-850/50 transition">
-          <svg class="w-8 h-8 text-indigo-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <label for="file-upload-input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-50 dark:bg-slate-850/50 transition">
+          <svg class="w-8 h-8 text-sky-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
           <span class="text-sm font-bold">Choose `.xls`, `.xlsx`, `.csv`, or `.json` file</span>
           <span class="text-xs text-slate-400 mt-1">Columns: Customer NO., Customer Name, location, item ID, pallet_no, Short Description, Actual Stock, Allocation, Available Stock, Warehouse ID</span>
           <input id="file-upload-input" type="file" accept=".xls,.xlsx,.csv,.json" class="hidden" />
         </label>
         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-          <button id="download-template-xlsx-btn" type="button" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+          <button id="download-template-xlsx-btn" type="button" class="px-3.5 py-2 rounded-lg text-xs font-bold bg-sky-50 hover:bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
             Download .XLS Import Template
           </button>
-          <button id="restore-sample-btn" type="button" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+          <button id="restore-sample-btn" type="button" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
             Load Built-in Sample Data
           </button>
         </div>
@@ -683,7 +683,7 @@
   <!-- MODAL 2: WMS LOGIN & INVENTORY API CONNECTOR                            -->
   <!-- ======================================================================= -->
   <div id="wms-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
       <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5">
           <h3 class="text-base font-bold">WMS Login &amp; Inventory API Connector</h3>
@@ -699,7 +699,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <div>
             <label class="text-[11px] font-semibold text-slate-500 block mb-1">Connection Architecture</label>
-            <select id="wms-arch-mode" class="w-full px-2.5 py-2 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700">
+            <select id="wms-arch-mode" class="w-full px-2.5 py-2 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700">
               <option value="DIRECT">Direct WMS API (`https://...`)</option>
               <option value="PROXY">Backend API Proxy (`/api/auth/login` &amp; `/api/wms/inventory`)</option>
             </select>
@@ -707,20 +707,20 @@
           <div>
             <label class="text-[11px] font-semibold text-slate-500 block mb-1">WMS Base URL (`{BASE_URL}`)</label>
             <input id="wms-base-url" type="url" value="https://prd-onus.target-ai.com:18890"
-              class="w-full px-2.5 py-2 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700" />
+              class="w-full px-2.5 py-2 rounded-lg font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700" />
           </div>
           <div>
             <label class="text-[11px] font-semibold text-slate-500 block mb-1">Inventory Endpoint (`POST`)</label>
             <input id="wms-endpoint-url" type="url" value="https://prd-onus.target-ai.com:18890/api/inventory/query/storageAndInboundDate"
-              class="w-full px-2.5 py-2 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700" />
+              class="w-full px-2.5 py-2 rounded-lg font-mono text-xs bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700" />
             <input id="wms-proxy-url" type="hidden" value="/api/wms/inventory" />
           </div>
         </div>
 
         <!-- STEP 1: WMS ACCOUNT SIGN-IN -->
-        <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Step 1: WMS Account Sign-In (`POST /api/login`)</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">Step 1: WMS Account Sign-In (`POST /api/login`)</span>
             <button id="wms-logout-btn" type="button" class="hidden text-[11px] font-bold text-rose-600 hover:underline">Sign Out</button>
           </div>
 
@@ -728,15 +728,15 @@
             <div class="sm:col-span-4">
               <label class="text-[11px] font-semibold text-slate-500 block mb-1">WMS Username</label>
               <input id="wms-login-username" type="text" autocomplete="username" placeholder="Enter WMS username"
-                class="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+                class="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
             </div>
             <div class="sm:col-span-4">
               <label class="text-[11px] font-semibold text-slate-500 block mb-1">WMS Password</label>
               <input id="wms-login-password" type="password" autocomplete="current-password" placeholder="Enter WMS password"
-                class="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+                class="w-full px-3 py-2 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
             </div>
             <div class="sm:col-span-4">
-              <button id="wms-login-btn" type="button" class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm min-h-[36px]">
+              <button id="wms-login-btn" type="button" class="w-full py-2 px-3 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 shadow-sm min-h-[36px]">
                 Sign In &amp; Get Token
               </button>
             </div>
@@ -744,14 +744,14 @@
 
           <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
             <label class="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400 cursor-pointer">
-              <input id="wms-remember-creds" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
+              <input id="wms-remember-creds" type="checkbox" class="rounded border-slate-300 text-amber-500" />
               <span>Remember username &amp; server on this device</span>
             </label>
             <button id="wms-clear-saved-creds-btn" type="button" class="hidden text-rose-500 hover:underline font-semibold">Forget Saved Login</button>
           </div>
 
           <!-- Inline Login Diagnostic / Error Feedback Box -->
-          <div id="wms-login-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium border"></div>
+          <div id="wms-login-feedback" class="hidden p-2.5 rounded-lg text-xs font-medium border"></div>
 
           <!-- Post-Login Active Warehouse ID Selector -->
           <div id="wms-post-login-wh-bar" class="hidden pt-2.5 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
@@ -760,11 +760,11 @@
               <span id="wms-login-wh-hint" class="text-[11px] font-mono text-slate-400">Active: ONUS-ONT</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
-              <select id="wms-login-wh-select" class="sm:col-span-10 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
+              <select id="wms-login-wh-select" class="sm:col-span-10 px-2.5 py-1.5 rounded-lg font-mono text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
                 <option value="ONUS-ONT">ONUS-ONT</option>
                 <option value="ONUS-Chino">ONUS-Chino</option>
               </select>
-              <button id="wms-apply-wh-btn" type="button" class="sm:col-span-2 py-1.5 px-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+              <button id="wms-apply-wh-btn" type="button" class="sm:col-span-2 py-1.5 px-2.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
                 Apply
               </button>
             </div>
@@ -772,7 +772,7 @@
         </div>
 
         <!-- STEP 2: INVENTORY QUERY FILTERS -->
-        <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Step 2: Inventory Query Filters</span>
             <select id="wms-sync-mode" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
@@ -795,7 +795,7 @@
               <div class="flex gap-1.5">
                 <input id="flt-storage-code" type="text" placeholder="e.g. S007, WS01, WS02 (press Enter or + Add)"
                   class="flex-1 px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
-                <button id="flt-add-loc-btn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">
+                <button id="flt-add-loc-btn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 shrink-0">
                   + Add
                 </button>
               </div>
@@ -804,7 +804,7 @@
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="text-[11px] font-semibold text-slate-500">Inbound ID (`inbound_no`)</label>
-                <select id="flt-inbound-op" class="text-[10px] bg-transparent font-mono text-indigo-500">
+                <select id="flt-inbound-op" class="text-[10px] bg-transparent font-mono text-sky-500">
                   <option value="contains">contains</option>
                   <option value="equals">equals</option>
                 </select>
@@ -815,7 +815,7 @@
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="text-[11px] font-semibold text-slate-500">pallet_no</label>
-                <select id="flt-pallet-op" class="text-[10px] bg-transparent font-mono text-indigo-500">
+                <select id="flt-pallet-op" class="text-[10px] bg-transparent font-mono text-sky-500">
                   <option value="contains">contains</option>
                   <option value="equals">equals</option>
                 </select>
@@ -828,7 +828,7 @@
                 <label class="text-[11px] font-semibold text-slate-500">product_code (add multiple)</label>
                 <div class="flex items-center gap-2">
                   <button id="flt-clear-skus-btn" type="button" class="text-[10px] font-bold text-rose-500 hover:underline hidden">Clear</button>
-                  <select id="flt-sku-op" class="text-[10px] bg-transparent font-mono text-indigo-500">
+                  <select id="flt-sku-op" class="text-[10px] bg-transparent font-mono text-sky-500">
                     <option value="contains">contains</option>
                     <option value="equals">equals</option>
                   </select>
@@ -837,7 +837,7 @@
               <div class="flex gap-1.5">
                 <input id="flt-product-code" type="text" placeholder="e.g. SKU1, SKU2 (Enter or +)"
                   class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
-                <button id="flt-add-sku-btn" type="button" class="px-2 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">
+                <button id="flt-add-sku-btn" type="button" class="px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 shrink-0">
                   + Add
                 </button>
               </div>
@@ -855,29 +855,29 @@
             <div>
               <span class="text-[11px] font-semibold text-slate-500 block mb-1">Request Payload (`POST` JSON)</span>
               <textarea id="wms-request-payload-editor" rows="5" readonly
-                class="w-full p-2.5 rounded-xl bg-slate-950 text-sky-300 font-mono text-[10px] border border-slate-800"></textarea>
+                class="w-full p-2.5 rounded-lg bg-slate-950 text-sky-300 font-mono text-[10px] border border-slate-800"></textarea>
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
                 <span class="text-[11px] font-semibold text-slate-500">API Response Inspector</span>
                 <span id="wms-api-status-text" class="text-[10px] font-mono text-slate-400">Idle</span>
               </div>
-              <pre id="wms-payload-preview" class="p-2.5 rounded-xl bg-slate-950 text-emerald-400 font-mono text-[10px] overflow-auto h-[106px] border border-slate-800">{ "status": "READY" }</pre>
+              <pre id="wms-payload-preview" class="p-2.5 rounded-lg bg-slate-950 text-emerald-400 font-mono text-[10px] overflow-auto h-[106px] border border-slate-800">{ "status": "READY" }</pre>
             </div>
           </div>
 
           <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
-            <button id="wms-stop-fetch-btn" type="button" class="hidden px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm">
+            <button id="wms-stop-fetch-btn" type="button" class="hidden px-4 py-2.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm">
               Stop Query
             </button>
-            <button id="wms-live-fetch-btn" type="button" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+            <button id="wms-live-fetch-btn" type="button" class="px-4 py-2.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
               Query Live WMS Inventory (Paginated)
             </button>
           </div>
         </div>
 
         <!-- STEP 3: AUTOMATIC GOOGLE SHEET CLOUD SYNC (MULTI-WAREHOUSE) -->
-        <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2.5">
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2.5">
           <div class="flex items-center justify-between gap-2">
             <span class="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Step 3: Automatic Google Sheet Cloud Sync</span>
             <label class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
@@ -888,7 +888,7 @@
           <p class="text-[11px] text-slate-500 dark:text-slate-400">
             Pre-configured for all warehouses! Every recorded count automatically saves to the active warehouse tab (e.g. <span class="font-mono font-bold">ONUS-ONT</span>) and <span class="font-mono font-bold">Master_Audit_Log</span> in the background with offline retry.
           </p>
-          <div class="flex items-center justify-between text-[11px] font-mono bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div class="flex items-center justify-between text-[11px] font-mono bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700">
             <span id="gsheet-sync-status-line" class="text-emerald-600 dark:text-emerald-400 font-bold">Built-in Cloud Sync Active</span>
             <div class="flex items-center gap-2">
               <span id="gsheet-queue-count-badge" class="hidden text-amber-600 dark:text-amber-400 font-bold">0 queued offline</span>
@@ -898,8 +898,8 @@
           </div>
           <div id="gsheet-override-box" class="hidden grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1">
             <input id="gsheet-webapp-url" type="url" placeholder="Optional custom Apps Script Web App link (ends in /exec)"
-              class="sm:col-span-9 px-3 py-2 rounded-xl font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:border-purple-500 focus:outline-none" />
-            <button id="gsheet-save-url-btn" type="button" class="sm:col-span-3 py-2 px-3 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm min-h-[36px]">
+              class="sm:col-span-9 px-3 py-2 rounded-lg font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:border-purple-500 focus:outline-none" />
+            <button id="gsheet-save-url-btn" type="button" class="sm:col-span-3 py-2 px-3 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm min-h-[36px]">
               Save Override
             </button>
           </div>
@@ -912,19 +912,19 @@
   <!-- MODAL 3: FINAL INVENTORY AUDIT & VARIANCE REPORT                        -->
   <!-- ======================================================================= -->
   <div id="report-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-6xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-6xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
       <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0 no-print">
         <div class="flex items-center gap-2">
           <h3 class="text-base font-bold">Final Inventory Audit Report</h3>
-          <div class="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
-            <button id="rep-view-pallet-btn" type="button" class="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white">Pallet Detail</button>
+          <div class="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+            <button id="rep-view-pallet-btn" type="button" class="px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950">Pallet Detail</button>
             <button id="rep-view-item-btn" type="button" class="px-3 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300">Item-Level Summary</button>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button id="export-xlsx-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Export .XLSX</button>
-          <button id="export-csv-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white">Export .CSV</button>
-          <button id="print-report-btn" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white">Print</button>
+          <button id="export-xlsx-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Export .XLSX</button>
+          <button id="export-csv-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white">Export .CSV</button>
+          <button id="print-report-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white">Print</button>
           <button type="button" data-close-modal="report-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
@@ -1068,7 +1068,7 @@
         info: 'bg-slate-900 text-white border-slate-700'
       };
       const el = document.createElement('div');
-      el.className = `pointer-events-auto px-3.5 py-2.5 rounded-xl text-xs font-semibold shadow-lg border transition-all duration-200 ${colors[type] || colors.info}`;
+      el.className = `pointer-events-auto px-3.5 py-2.5 rounded-lg text-xs font-semibold shadow-lg border transition-all duration-200 ${colors[type] || colors.info}`;
       el.textContent = message;
       container.appendChild(el);
       setTimeout(() => {
@@ -1804,8 +1804,8 @@
           ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300'
           : kind === 'success'
             ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300'
-            : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300';
-        fb.className = `p-2.5 rounded-xl text-xs font-medium border ${tone}`;
+            : 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-300';
+        fb.className = `p-2.5 rounded-lg text-xs font-medium border ${tone}`;
         fb.textContent = msg;
       },
 
@@ -1865,12 +1865,12 @@
           const isActive = active && active.taskId === t.taskId;
           const who = t.assignedTo ? `Assigned to ${escapeHtml(t.assignedTo)}` : 'Unassigned';
           return `
-            <div class="flex items-center gap-2 p-2.5 rounded-xl border ${isActive ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' : 'border-slate-200 dark:border-slate-800'}">
+            <div class="flex items-center gap-2 p-2.5 rounded-lg border ${isActive ? 'border-sky-400 bg-sky-50 dark:bg-sky-950/30' : 'border-slate-200 dark:border-slate-800'}">
               <div class="min-w-0 flex-1">
                 <div class="font-bold font-mono">${escapeHtml(t.customerNo)} <span class="font-sans font-normal text-slate-500">${escapeHtml(t.customerName || '')}</span></div>
                 <div class="text-[11px] text-slate-500">${escapeHtml(t.taskId)} · ${who} · ${escapeHtml(t.status)}${t.locations ? ' · ' + escapeHtml(t.locations) : ''}${t.source ? ' · by ' + escapeHtml(t.source) : ''}</div>
               </div>
-              <button type="button" data-start-task="${escapeHtml(t.taskId)}" class="px-3 py-1.5 rounded-xl text-xs font-bold ${isActive ? 'bg-slate-200 dark:bg-slate-700' : 'bg-indigo-600 hover:bg-indigo-700 text-white'} min-h-[34px]">${isActive ? 'Current' : 'Start'}</button>
+              <button type="button" data-start-task="${escapeHtml(t.taskId)}" class="px-3 py-1.5 rounded-lg text-xs font-bold ${isActive ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950'} min-h-[34px]">${isActive ? 'Current' : 'Start'}</button>
             </div>`;
         }).join('');
       },
@@ -2323,7 +2323,7 @@
       const clearLocBtn = document.getElementById('flt-clear-locs-btn');
       if (locWrap) {
         locWrap.innerHTML = state.queryLocationIds.map(loc => `
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
             ${escapeHtml(loc)}
             <button type="button" data-remove-loc="${escapeHtml(loc)}" class="hover:text-rose-500">&times;</button>
           </span>
@@ -2546,7 +2546,7 @@
       }
       wrap.innerHTML = pending.map(item => `
         <button type="button" data-select-item-id="${escapeHtml(item.id)}"
-          class="px-2 py-1 rounded-lg font-mono text-[11px] font-bold bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-700 dark:text-indigo-300 border border-slate-200 dark:border-slate-700 transition">
+          class="px-2 py-1 rounded-lg font-mono text-[11px] font-bold bg-slate-100 hover:bg-sky-100 dark:bg-slate-800 dark:hover:bg-sky-950 text-slate-700 dark:text-sky-300 border border-slate-200 dark:border-slate-700 transition">
           ${escapeHtml(item.lpn)} <span class="text-slate-400 font-normal">(${escapeHtml(item.sysLocation || '--')})</span>
         </button>
       `).join('');
@@ -2695,11 +2695,11 @@
         }
 
         return `
-          <tr data-row-item-id="${escapeHtml(item.id)}" class="cursor-pointer transition hover:bg-indigo-50/60 dark:hover:bg-slate-800/70 ${isActive ? 'bg-indigo-50 dark:bg-indigo-950/40' : ''}">
+          <tr data-row-item-id="${escapeHtml(item.id)}" class="cursor-pointer transition hover:bg-amber-50/60 dark:hover:bg-slate-800/70 ${isActive ? 'bg-sky-50 dark:bg-sky-950/40' : ''}">
             <td class="py-2.5 px-3 font-mono font-bold text-slate-800 dark:text-slate-100">
               <div class="flex items-center gap-1.5">
                 <span>${escapeHtml(item.lpn)}</span>
-                <button type="button" data-copy-text="${escapeHtml(item.lpn)}" title="Copy LP" class="text-slate-400 hover:text-indigo-500">&#10697;</button>
+                <button type="button" data-copy-text="${escapeHtml(item.lpn)}" title="Copy LP" class="text-slate-400 hover:text-sky-500">&#10697;</button>
               </div>
               <div class="flex flex-wrap gap-1 mt-0.5">
                 ${item.inboundNo ? `<span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">INB: ${escapeHtml(item.inboundNo)}</span>` : ''}
@@ -2711,7 +2711,7 @@
               ${locChanged ? `<span class="block text-[10px] text-amber-600">&rarr; ${escapeHtml(item.actualLocation)}</span>` : ''}
             </td>
             <td class="py-2.5 px-2.5">
-              <div class="font-mono font-bold text-indigo-600 dark:text-indigo-400">${escapeHtml(item.itemId)}</div>
+              <div class="font-mono font-bold text-sky-700 dark:text-sky-400">${escapeHtml(item.itemId)}</div>
               <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[220px]">${escapeHtml(item.itemName)}</div>
             </td>
             <td class="py-2.5 px-2 text-right font-mono font-bold">${item.sysActualQty}</td>
@@ -2806,7 +2806,7 @@
       if (meta) meta.textContent = `Warehouse: ${state.activeWarehouse} • Source: ${state.sourceLabel} • Generated: ${new Date().toLocaleString()}`;
       if (chips) {
         chips.innerHTML = `
-          <span class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-bold">Audited: ${countedCount}/${state.items.length}</span>
+          <span class="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold">Audited: ${countedCount}/${state.items.length}</span>
         `;
       }
 
@@ -3003,7 +3003,7 @@
         state.scannerMode = 'LP';
         document.getElementById('lp-scanner-section')?.classList.remove('hidden');
         document.getElementById('nolp-scanner-section')?.classList.add('hidden');
-        document.getElementById('mode-lp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-600 text-white shadow-sm transition min-h-[36px] truncate';
+        document.getElementById('mode-lp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950 shadow-sm transition min-h-[36px] truncate';
         document.getElementById('mode-nolp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800 transition min-h-[36px] truncate';
         document.getElementById('lp-scan-input')?.focus();
       });
@@ -3289,7 +3289,7 @@
           document.querySelectorAll('.ledger-tab').forEach(t => {
             t.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400';
           });
-          tab.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm';
+          tab.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-400 shadow-sm';
           renderLedgerTable();
         });
       });
@@ -3338,7 +3338,7 @@
         const btn = document.getElementById('wms-login-btn');
         if (!user.trim() || !pass) {
           if (fb) {
-            fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300';
+            fb.className = 'p-2.5 rounded-lg text-xs font-medium border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300';
             fb.textContent = 'Please enter both WMS username and password.';
             fb.classList.remove('hidden');
           }
@@ -3346,7 +3346,7 @@
         }
         if (btn) btn.disabled = true;
         if (fb) {
-          fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300';
+          fb.className = 'p-2.5 rounded-lg text-xs font-medium border bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-300';
           fb.textContent = 'Signing in to WMS...';
           fb.classList.remove('hidden');
         }
@@ -3360,7 +3360,7 @@
             document.getElementById('wms-clear-saved-creds-btn')?.classList.remove('hidden');
           }
           if (fb) {
-            fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300';
+            fb.className = 'p-2.5 rounded-lg text-xs font-medium border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300';
             fb.textContent = `Signed in as ${res.displayName || user} (${authSession.archMode} mode). `
               + (authSession.warehousesFromWms
                 ? `Warehouses for this account: ${authSession.warehouses.join(', ')}.`
@@ -3370,7 +3370,7 @@
           showToast('WMS Sign-In successful!', 'success');
         } catch (err) {
           if (fb) {
-            fb.className = 'p-2.5 rounded-xl text-xs font-medium border bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300';
+            fb.className = 'p-2.5 rounded-lg text-xs font-medium border bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300';
             fb.textContent = err.message;
           }
           showToast(err.message, 'error');
@@ -3653,14 +3653,14 @@
       // Final Report View Toggle & Exports
       document.getElementById('rep-view-pallet-btn')?.addEventListener('click', () => {
         state.reportViewMode = 'PALLET';
-        document.getElementById('rep-view-pallet-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white';
+        document.getElementById('rep-view-pallet-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950';
         document.getElementById('rep-view-item-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300';
         renderFinalReport();
       });
 
       document.getElementById('rep-view-item-btn')?.addEventListener('click', () => {
         state.reportViewMode = 'ITEM';
-        document.getElementById('rep-view-item-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white';
+        document.getElementById('rep-view-item-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950';
         document.getElementById('rep-view-pallet-btn').className = 'px-3 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300';
         renderFinalReport();
       });
