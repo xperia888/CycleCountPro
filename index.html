@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.1';
+    window.CCP_BUILD = '2026-11-25.2';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -99,6 +99,10 @@
     ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 9999px; }
     .dark ::-webkit-scrollbar-thumb { background: #475569; }
 
+    .imp-drop-hover { border-color: #f59e0b !important; border-style: solid !important; background: rgba(245, 158, 11, 0.12) !important; }
+    #task-bar.task-bar-missing { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25); background: rgba(245, 158, 11, 0.08); }
+    #task-bar.task-bar-missing #task-bar-label { color: #b45309; }
+    .dark #task-bar.task-bar-missing #task-bar-label { color: #fbbf24; }
     .scan-flash-ok { animation: flashOk 0.45s ease-out; }
     .scan-flash-warn { animation: flashWarn 0.45s ease-out; }
     @keyframes flashOk {
@@ -208,7 +212,7 @@
     <!-- COUNT TASK BAR: which customer / task this device is counting -->
     <div id="task-bar" class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-800 shadow-sm">
       <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Task</span>
-      <span id="task-bar-label" class="text-xs font-semibold flex-1 min-w-0 truncate">No task selected</span>
+      <span id="task-bar-label" class="text-xs font-semibold flex-1 min-w-0 truncate">No task: pick or create a task before importing or counting</span>
       <span id="task-bar-progress" class="hidden text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300"></span>
       <button id="open-task-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 min-h-[34px]">Pick task</button>
     </div>
@@ -579,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.1</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.2</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -649,22 +653,24 @@
   <!-- ======================================================================= -->
   <!-- MODAL 1: IMPORT STOCK_BY_INVENTORY REPORT (.XLS / .XLSX / .CSV / .JSON) -->
   <!-- ======================================================================= -->
-  <div id="import-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+  <div id="import-modal" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3">
+    <div class="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
+      <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
         <div>
-          <h3 class="text-base font-bold">Import `stock_by_inventory` Report</h3>
-          <p class="text-xs text-slate-500">Supports .XLS, .XLSX, .CSV, or .JSON inventory exports</p>
+          <h3 class="text-base font-bold">Import Inventory</h3>
+          <p id="imp-sub" class="text-xs text-slate-500">Any .XLS, .XLSX, .CSV or .JSON export. You match its columns in the next step.</p>
         </div>
-        <button type="button" data-close-modal="import-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+        <button type="button" data-close-modal="import-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
-      <div class="p-5 space-y-4">
-        <label for="file-upload-input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-50 dark:bg-slate-850/50 transition">
+
+      <!-- STEP 1: choose or drop a file -->
+      <div id="imp-step-file" class="p-5 space-y-4 overflow-y-auto">
+        <label id="imp-dropzone" for="file-upload-input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 rounded-lg p-6 cursor-pointer bg-slate-50 dark:bg-slate-850/50 transition">
           <svg class="w-8 h-8 text-sky-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-          <span class="text-sm font-bold">Choose `.xls`, `.xlsx`, `.csv`, or `.json` file</span>
-          <span class="text-xs text-slate-400 mt-1">Columns: Customer NO., Customer Name, location, item ID, pallet_no, Short Description, Actual Stock, Allocation, Available Stock, Warehouse ID</span>
+          <span class="text-sm font-bold">Drop a file here, or tap to choose</span>
+          <span class="text-xs text-slate-400 mt-1 text-center">.xls · .xlsx · .csv · .json. Any column names and order: you match them to the app's fields next.</span>
           <input id="file-upload-input" type="file" accept=".xls,.xlsx,.csv,.json" class="hidden" />
         </label>
         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
@@ -674,6 +680,48 @@
           <button id="restore-sample-btn" type="button" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
             Load Built-in Sample Data
           </button>
+        </div>
+      </div>
+
+      <!-- STEP 2: drag each file column onto the field it holds -->
+      <div id="imp-step-map" class="hidden flex-1 min-h-0 flex flex-col">
+        <div class="px-4 sm:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs shrink-0">
+          <span class="font-mono font-bold truncate max-w-[220px]" id="imp-file-name"></span>
+          <label class="flex items-center gap-1 text-slate-500" id="imp-sheet-wrap">Sheet
+            <select id="imp-sheet" class="px-1.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 text-xs"></select>
+          </label>
+          <label class="flex items-center gap-1 text-slate-500">Header row
+            <input id="imp-header-row" type="number" min="1" class="w-14 px-1.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 text-xs" />
+          </label>
+          <span id="imp-template-note" class="text-emerald-600 dark:text-emerald-400 font-semibold"></span>
+          <button id="imp-auto-btn" type="button" class="ml-auto px-2.5 py-1 rounded-lg font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800">Auto-match</button>
+          <button id="imp-clear-btn" type="button" class="px-2.5 py-1 rounded-lg font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800">Clear</button>
+        </div>
+        <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div class="md:col-span-2 space-y-2">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Columns in your file</div>
+            <p class="text-[11px] text-slate-400">Drag a column onto a field. On a phone: tap a column, then tap the field.</p>
+            <div id="imp-columns" class="flex flex-wrap gap-1.5"></div>
+          </div>
+          <div class="md:col-span-3 space-y-2">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">CycleCount fields</div>
+            <div id="imp-fields" class="space-y-1.5"></div>
+          </div>
+          <div class="md:col-span-5 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Preview</span>
+              <span id="imp-count" class="text-[11px] text-slate-500"></span>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+              <table class="w-full text-[11px]"><thead id="imp-preview-head" class="bg-slate-50 dark:bg-slate-850 text-slate-500"></thead><tbody id="imp-preview-body" class="font-mono"></tbody></table>
+            </div>
+          </div>
+        </div>
+        <div class="px-4 sm:px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 shrink-0">
+          <span id="imp-error" class="text-xs font-semibold text-rose-600 dark:text-rose-400 flex-1 min-w-[160px]"></span>
+          <label class="flex items-center gap-1.5 text-xs text-slate-500"><input id="imp-remember" type="checkbox" checked class="rounded border-slate-300 text-amber-500" /> Remember for this template</label>
+          <button id="imp-back-btn" type="button" class="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 min-h-[38px]">Back</button>
+          <button id="imp-confirm-btn" type="button" class="px-4 py-2 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 min-h-[38px] disabled:opacity-50">Import</button>
         </div>
       </div>
     </div>
@@ -1440,6 +1488,16 @@
       return state.activeTaskByWarehouse[whId || state.activeWarehouse] || null;
     }
 
+    // Every count belongs to a task, so the Monitoring Center sees all activity.
+    // Without one, open the task picker instead of doing the action.
+    function requireTask(action) {
+      if (getActiveTask()) return true;
+      showToast(`Pick or create a count task before ${action}.`, 'warn');
+      TaskService.open().then(() => TaskService.feedback(
+        `Pick a task below, or create your own, before ${action}. This lets the Monitoring Center follow the count.`, 'info'));
+      return false;
+    }
+
     function counterNames() {
       return [authSession.username, authSession.displayName].filter(Boolean);
     }
@@ -1990,7 +2048,8 @@
         const label = document.getElementById('task-bar-label');
         const prog = document.getElementById('task-bar-progress');
         const btn = document.getElementById('open-task-btn');
-        if (label) label.textContent = task ? `${this.describe(task)} · ${task.taskId}` : 'No task selected (counts are saved without a task)';
+        if (label) label.textContent = task ? `${this.describe(task)} · ${task.taskId}` : 'No task: pick or create a task before importing or counting';
+        document.getElementById('task-bar')?.classList.toggle('task-bar-missing', !task);
         if (btn) btn.textContent = task ? 'Task options' : 'Pick task';
         if (prog) {
           const total = state.items.length;
@@ -2225,15 +2284,401 @@
     // -------------------------------------------------------------------------
     // DATA NORMALIZATION, IMPORT & MULTI-QUERY UI HELPERS
     // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // IMPORT: drag-and-match columns, so any template can be imported.
+    // The file's columns are matched to the app's fields (auto-matched by name,
+    // then adjusted by drag and drop or tap). Mappings are remembered per template.
+    // -------------------------------------------------------------------------
+    const IMPORT_FIELDS = [
+      { key: 'item', label: 'Item ID / SKU', canon: 'item ID', required: true,
+        aliases: ['item id', 'item', 'sku', 'product code', 'product_code', 'item no', 'item number', 'item code', 'part number', 'part no', 'material'] },
+      { key: 'qty', label: 'System qty (actual)', canon: 'Actual Stock', required: true,
+        aliases: ['actual stock', 'sys actual', 'system qty', 'actual qty', 'actual_qty', 'actual_nums', 'qty', 'quantity', 'on hand', 'onhand', 'on hand qty', 'stock qty', 'stock', 'inventory qty'] },
+      { key: 'lpn', label: 'Pallet LP', canon: 'pallet_no', hint: 'blank rows get ROW-n',
+        aliases: ['pallet no', 'pallet_no', 'pallet', 'pallet lp', 'pallet id', 'lp', 'lpn', 'license plate', 'plt', 'plt no'] },
+      { key: 'loc', label: 'Location', canon: 'location',
+        aliases: ['location', 'loction', 'loc', 'sys location', 'storage code', 'storage_code', 'bin', 'slot', 'storage location', 'location code'] },
+      { key: 'name', label: 'Item description', canon: 'Short Description',
+        aliases: ['short description', 'item description', 'description', 'item name', 'product name', 'product_name', 'desc'] },
+      { key: 'alloc', label: 'Allocated qty', canon: 'Allocation',
+        aliases: ['allocation', 'allocated', 'allocated qty', 'allocated_qty', 'booked', 'booked_nums', 'reserved', 'reserved qty'] },
+      { key: 'avail', label: 'Available qty', canon: 'Available Stock',
+        aliases: ['available stock', 'available', 'available qty', 'available_qty', 'available_nums', 'remaining', 'avail'] },
+      { key: 'custNo', label: 'Customer No.', canon: 'Customer NO.',
+        aliases: ['customer no', 'customer no.', 'customer', 'customer code', 'owner no', 'owner_no', 'owner', 'client', 'client code'] },
+      { key: 'custName', label: 'Customer name', canon: 'Customer Name',
+        aliases: ['customer name', 'owner name', 'owner_name', 'client name'] },
+      { key: 'wh', label: 'Warehouse ID', canon: 'Warehouse ID',
+        aliases: ['warehouse id', 'warehouse', 'warehouse_id', 'wh no', 'wh_no', 'wh', 'site'] },
+      { key: 'inbound', label: 'Inbound No.', canon: 'Inbound ID',
+        aliases: ['inbound id', 'inbound no', 'inbound_no', 'inbound', 'receipt no', 'asn'] },
+      { key: 'po', label: 'PO No.', canon: 'PO No',
+        aliases: ['po no', 'po_no', 'po', 'po number', 'purchase order'] }
+    ];
+    const IMPORT_MAPS_KEY = 'ccp_import_mappings_v1';
+
+    const ImportMapper = {
+      file: null, workbook: null, sheetName: '', grid: [], headerRow: 0,
+      columns: [], mapping: {}, picked: null, templateKey: '',
+
+      normHeader(h) {
+        return String(h ?? '').toLowerCase().replace(/[_\-.#:/()]+/g, ' ').replace(/\s+/g, ' ').trim();
+      },
+
+      reset() {
+        this.file = null; this.workbook = null; this.grid = []; this.columns = []; this.mapping = {}; this.picked = null;
+        document.getElementById('imp-step-file')?.classList.remove('hidden');
+        document.getElementById('imp-step-map')?.classList.add('hidden');
+        const sub = document.getElementById('imp-sub');
+        if (sub) sub.textContent = 'Any .XLS, .XLSX, .CSV or .JSON export. You match its columns in the next step.';
+      },
+
+      async load(file) {
+        this.file = file;
+        if (file.name.toLowerCase().endsWith('.json')) {
+          const parsed = JSON.parse(await file.text());
+          const rows = Array.isArray(parsed) ? parsed : (parsed.rows || parsed.data || []);
+          const keys = [];
+          rows.forEach(r => Object.keys(r || {}).forEach(k => { if (!keys.includes(k)) keys.push(k); }));
+          this.workbook = null;
+          this.sheetName = '';
+          this.grid = [keys, ...rows.map(r => keys.map(k => r?.[k] ?? ''))];
+        } else {
+          this.workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+          this.sheetName = this.workbook.SheetNames.find(n => {
+            const ref = this.workbook.Sheets[n]['!ref'];
+            return ref && XLSX.utils.decode_range(ref).e.r > 0;
+          }) || this.workbook.SheetNames[0];
+          this.readSheet();
+        }
+        if (!this.grid.length) throw new Error('The file is empty.');
+        this.headerRow = this.detectHeaderRow();
+        this.buildColumns();
+        this.applySavedOrAuto();
+        this.show();
+      },
+
+      readSheet() {
+        const ws = this.workbook.Sheets[this.sheetName];
+        this.grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false, raw: true });
+      },
+
+      // The header is the row (among the first 15) whose cells best match known field names.
+      detectHeaderRow() {
+        const known = new Set(IMPORT_FIELDS.flatMap(f => f.aliases.map(a => this.normHeader(a))));
+        let best = 0, bestScore = -1;
+        this.grid.slice(0, 15).forEach((row, i) => {
+          const cells = (row || []).filter(c => String(c).trim() !== '');
+          const texts = cells.filter(c => typeof c === 'string' && isNaN(Number(c)));
+          const hits = texts.filter(c => known.has(this.normHeader(c))).length;
+          const score = hits * 10 + texts.length;
+          if (cells.length >= 2 && score > bestScore) { best = i; bestScore = score; }
+        });
+        return best;
+      },
+
+      buildColumns() {
+        const head = this.grid[this.headerRow] || [];
+        const width = Math.max(head.length, ...this.grid.slice(this.headerRow + 1, this.headerRow + 50).map(r => (r || []).length));
+        const seen = {};
+        this.columns = [];
+        for (let c = 0; c < width; c++) {
+          let name = String(head[c] ?? '').trim() || `Column ${XLSX.utils.encode_col(c)}`;
+          if (seen[name]) name = `${name} (${++seen[name]})`; else seen[name] = 1;
+          const sample = this.dataRows().map(r => r[c]).find(v => String(v ?? '').trim() !== '');
+          this.columns.push({ index: c, name, sample: sample === undefined ? '' : String(sample) });
+        }
+        this.templateKey = this.columns.map(c => this.normHeader(c.name)).join('|');
+      },
+
+      dataRows() {
+        return this.grid.slice(this.headerRow + 1).filter(r => (r || []).some(v => String(v ?? '').trim() !== ''));
+      },
+
+      autoMatch() {
+        const map = {};
+        const used = new Set();
+        const norm = this.columns.map(c => this.normHeader(c.name));
+        // 1) exact name matches, field by field in priority order
+        IMPORT_FIELDS.forEach(f => {
+          const aliases = f.aliases.map(a => this.normHeader(a));
+          for (const a of aliases) {
+            const i = norm.findIndex((n, idx) => n === a && !used.has(idx));
+            if (i !== -1) { map[f.key] = this.columns[i].index; used.add(i); break; }
+          }
+        });
+        // 2) whole-word partial matches for fields still open ("Pallet No." in "Pallet No. (LP)")
+        IMPORT_FIELDS.forEach(f => {
+          if (map[f.key] !== undefined) return;
+          const aliases = f.aliases.map(a => this.normHeader(a)).filter(a => a.length >= 3);
+          for (const a of aliases) {
+            const re = new RegExp(`(^| )${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
+            const i = norm.findIndex((n, idx) => !used.has(idx) && re.test(n));
+            if (i !== -1) { map[f.key] = this.columns[i].index; used.add(i); break; }
+          }
+        });
+        this.mapping = map;
+      },
+
+      savedMaps() {
+        try { return JSON.parse(localStorage.getItem(IMPORT_MAPS_KEY) || '{}') || {}; } catch (e) { return {}; }
+      },
+
+      applySavedOrAuto() {
+        const saved = this.savedMaps()[this.templateKey];
+        const note = document.getElementById('imp-template-note');
+        if (saved && saved.headerRow === this.headerRow) {
+          this.mapping = {};
+          Object.entries(saved.mapping || {}).forEach(([k, v]) => {
+            if (this.columns.some(c => c.index === v)) this.mapping[k] = v;
+          });
+          if (note) note.textContent = 'Saved match for this template applied';
+        } else {
+          this.autoMatch();
+          if (note) note.textContent = '';
+        }
+      },
+
+      remember() {
+        if (!document.getElementById('imp-remember')?.checked) return;
+        const all = this.savedMaps();
+        all[this.templateKey] = { headerRow: this.headerRow, mapping: this.mapping, savedAt: new Date().toISOString() };
+        const keys = Object.keys(all);
+        if (keys.length > 30) keys.sort((a, b) => String(all[a].savedAt).localeCompare(String(all[b].savedAt))).slice(0, keys.length - 30).forEach(k => delete all[k]);
+        try { localStorage.setItem(IMPORT_MAPS_KEY, JSON.stringify(all)); } catch (e) { /* storage full: skip */ }
+      },
+
+      assign(fieldKey, colIndex) {
+        // one column feeds one field: drop it from any other field first
+        Object.keys(this.mapping).forEach(k => { if (this.mapping[k] === colIndex) delete this.mapping[k]; });
+        if (colIndex === null || colIndex === undefined || colIndex === '') delete this.mapping[fieldKey];
+        else this.mapping[fieldKey] = Number(colIndex);
+        this.picked = null;
+        document.getElementById('imp-template-note').textContent = '';
+        this.render();
+      },
+
+      show() {
+        document.getElementById('imp-step-file')?.classList.add('hidden');
+        document.getElementById('imp-step-map')?.classList.remove('hidden');
+        document.getElementById('imp-file-name').textContent = this.file?.name || '';
+        const sub = document.getElementById('imp-sub');
+        if (sub) sub.textContent = 'Match your file\'s columns to the fields. Item ID and System qty are required.';
+        const sheetSel = document.getElementById('imp-sheet');
+        const wrap = document.getElementById('imp-sheet-wrap');
+        if (this.workbook && this.workbook.SheetNames.length > 1) {
+          wrap.classList.remove('hidden');
+          sheetSel.innerHTML = this.workbook.SheetNames.map(n => `<option ${n === this.sheetName ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+        } else {
+          wrap.classList.add('hidden');
+        }
+        document.getElementById('imp-header-row').value = this.headerRow + 1;
+        this.render();
+      },
+
+      render() {
+        const colName = idx => this.columns.find(c => c.index === idx)?.name;
+        const usedBy = {};
+        Object.entries(this.mapping).forEach(([k, v]) => { usedBy[v] = k; });
+
+        document.getElementById('imp-columns').innerHTML = this.columns.map(c => {
+          const used = usedBy[c.index] !== undefined;
+          const picked = this.picked === c.index;
+          const tone = picked ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 ring-2 ring-amber-400/40'
+            : used ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 opacity-70'
+            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 hover:border-amber-500';
+          return `<button type="button" draggable="true" data-imp-col="${c.index}" class="imp-col text-left px-2 py-1.5 rounded-lg border ${tone} cursor-grab active:cursor-grabbing max-w-full">
+            <span class="block text-xs font-bold truncate max-w-[200px]">${used ? '✓ ' : '⠿ '}${escapeHtml(c.name)}</span>
+            <span class="block text-[10px] font-mono text-slate-400 truncate max-w-[200px]">${escapeHtml(c.sample || '(empty)')}</span>
+          </button>`;
+        }).join('');
+
+        const options = `<option value="">(not in file)</option>` + this.columns.map(c => `<option value="${c.index}">${escapeHtml(c.name)}</option>`).join('');
+        document.getElementById('imp-fields').innerHTML = IMPORT_FIELDS.map(f => {
+          const idx = this.mapping[f.key];
+          const has = idx !== undefined;
+          const missing = f.required && !has;
+          const tone = has ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20'
+            : missing ? 'border-rose-300 dark:border-rose-800 border-dashed bg-rose-50/50 dark:bg-rose-950/20'
+            : 'border-slate-300 dark:border-slate-700 border-dashed';
+          return `<div data-imp-field="${f.key}" class="imp-field flex items-center gap-2 px-2.5 py-1.5 rounded-lg border ${tone} transition">
+            <div class="w-32 sm:w-36 shrink-0">
+              <div class="text-xs font-bold">${escapeHtml(f.label)}${f.required ? ' <span class="text-rose-500">*</span>' : ''}</div>
+              ${f.hint ? `<div class="text-[10px] text-slate-400">${escapeHtml(f.hint)}</div>` : ''}
+            </div>
+            <select data-imp-select="${f.key}" class="flex-1 min-w-0 px-2 py-1 rounded-lg text-xs ${has ? 'font-bold' : 'text-slate-400'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" aria-label="${escapeHtml(f.label)} column">
+              ${options.replace(`value="${idx}"`, `value="${idx}" selected`)}
+            </select>
+            ${has ? `<button type="button" data-imp-unmap="${f.key}" class="text-slate-400 hover:text-rose-500 px-1" aria-label="Clear ${escapeHtml(f.label)}" title="Clear">✕</button>` : '<span class="w-5"></span>'}
+          </div>`;
+        }).join('');
+        void colName;
+        this.renderPreview();
+      },
+
+      // Builds rows keyed by the app's own column names, so the normal import code reads them.
+      canonicalRows() {
+        return this.dataRows().map(r => {
+          const out = {};
+          IMPORT_FIELDS.forEach(f => {
+            const idx = this.mapping[f.key];
+            if (idx !== undefined) out[f.canon] = r[idx] ?? '';
+          });
+          return out;
+        });
+      },
+
+      validate() {
+        const missing = IMPORT_FIELDS.filter(f => f.required && this.mapping[f.key] === undefined).map(f => f.label);
+        if (missing.length) return `Match ${missing.join(' and ')} to a column.`;
+        const rows = this.canonicalRows();
+        if (!rows.length) return 'No data rows under the header row.';
+        const qtyBad = rows.filter(r => String(r['Actual Stock']).trim() !== '' && toQty(r['Actual Stock']) === null).length;
+        if (qtyBad > rows.length / 2) return `The "System qty" column has mostly non-numbers. Check the match.`;
+        return '';
+      },
+
+      renderPreview() {
+        const shown = IMPORT_FIELDS.filter(f => this.mapping[f.key] !== undefined);
+        const rows = this.canonicalRows();
+        document.getElementById('imp-preview-head').innerHTML = `<tr>${shown.map(f => `<th class="text-left px-2 py-1 font-semibold whitespace-nowrap">${escapeHtml(f.label)}</th>`).join('')}</tr>`;
+        document.getElementById('imp-preview-body').innerHTML = rows.slice(0, 5).map(r =>
+          `<tr class="border-t border-slate-100 dark:border-slate-800">${shown.map(f => `<td class="px-2 py-1 whitespace-nowrap max-w-[180px] truncate">${escapeHtml(String(r[f.canon] ?? ''))}</td>`).join('')}</tr>`).join('')
+          || '<tr><td class="px-2 py-2 text-slate-400">Nothing matched yet.</td></tr>';
+        document.getElementById('imp-count').textContent = `${rows.length} data rows${rows.length > 5 ? ' · first 5 shown' : ''}`;
+        const err = this.validate();
+        document.getElementById('imp-error').textContent = err;
+        document.getElementById('imp-confirm-btn').disabled = !!err;
+      },
+
+      async confirm() {
+        const err = this.validate();
+        if (err) { document.getElementById('imp-error').textContent = err; return; }
+        if (!requireTask('importing inventory')) { closeModal('import-modal'); return; }
+        if (!(await confirmBackupBeforeNewData(`Importing ${this.file.name}`))) return;
+        const items = normalizeRowsToItems(this.canonicalRows());
+        if (!items.length) { showToast('No valid inventory rows found with this match.', 'warn'); return; }
+        const kept = applyImportedItems(items, this.file.name, true);
+        if (!kept) return;
+        this.remember();
+        closeModal('import-modal');
+        showToast(`Loaded ${kept} rows for ${state.activeWarehouse} from ${this.file.name}`, 'success');
+        TaskService.uploadExpected();
+      },
+
+      bind() {
+        const zone = document.getElementById('imp-dropzone');
+        ['dragenter', 'dragover'].forEach(ev => zone?.addEventListener(ev, e => {
+          e.preventDefault(); zone.classList.add('border-amber-500', 'bg-amber-50');
+        }));
+        ['dragleave', 'drop'].forEach(ev => zone?.addEventListener(ev, () => zone.classList.remove('border-amber-500', 'bg-amber-50')));
+        zone?.addEventListener('drop', e => {
+          e.preventDefault();
+          const f = e.dataTransfer?.files?.[0];
+          if (f) this.open(f);
+        });
+        document.getElementById('file-upload-input')?.addEventListener('change', e => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) this.open(f);
+        });
+
+        const cols = document.getElementById('imp-columns');
+        const fields = document.getElementById('imp-fields');
+        cols?.addEventListener('dragstart', e => {
+          const c = e.target.closest('[data-imp-col]');
+          if (!c) return;
+          e.dataTransfer.setData('text/plain', c.getAttribute('data-imp-col'));
+          e.dataTransfer.effectAllowed = 'link';
+        });
+        cols?.addEventListener('click', e => {
+          const c = e.target.closest('[data-imp-col]');
+          if (!c) return;
+          const idx = Number(c.getAttribute('data-imp-col'));
+          this.picked = this.picked === idx ? null : idx;
+          this.render();
+        });
+        fields?.addEventListener('dragover', e => {
+          const f = e.target.closest('[data-imp-field]');
+          if (!f) return;
+          e.preventDefault();
+          fields.querySelectorAll('.imp-drop-hover').forEach(x => x !== f && x.classList.remove('imp-drop-hover'));
+          f.classList.add('imp-drop-hover');
+        });
+        fields?.addEventListener('dragleave', e => {
+          const f = e.target.closest('[data-imp-field]');
+          if (f && !f.contains(e.relatedTarget)) f.classList.remove('imp-drop-hover');
+        });
+        fields?.addEventListener('drop', e => {
+          const f = e.target.closest('[data-imp-field]');
+          if (!f) return;
+          e.preventDefault();
+          const idx = e.dataTransfer.getData('text/plain');
+          if (idx !== '') this.assign(f.getAttribute('data-imp-field'), Number(idx));
+        });
+        fields?.addEventListener('click', e => {
+          const un = e.target.closest('[data-imp-unmap]');
+          if (un) { this.assign(un.getAttribute('data-imp-unmap'), null); return; }
+          const f = e.target.closest('[data-imp-field]');
+          if (f && this.picked !== null && !e.target.closest('select')) this.assign(f.getAttribute('data-imp-field'), this.picked);
+        });
+        fields?.addEventListener('change', e => {
+          const sel = e.target.closest('[data-imp-select]');
+          if (sel) this.assign(sel.getAttribute('data-imp-select'), sel.value === '' ? null : Number(sel.value));
+        });
+
+        document.getElementById('imp-sheet')?.addEventListener('change', e => {
+          this.sheetName = e.target.value;
+          this.readSheet();
+          this.headerRow = this.detectHeaderRow();
+          this.buildColumns();
+          this.applySavedOrAuto();
+          this.show();
+        });
+        document.getElementById('imp-header-row')?.addEventListener('change', e => {
+          const n = Math.max(1, Math.min(this.grid.length, Number(e.target.value) || 1));
+          this.headerRow = n - 1;
+          this.buildColumns();
+          this.applySavedOrAuto();
+          this.show();
+        });
+        document.getElementById('imp-auto-btn')?.addEventListener('click', () => {
+          this.autoMatch(); document.getElementById('imp-template-note').textContent = ''; this.render();
+        });
+        document.getElementById('imp-clear-btn')?.addEventListener('click', () => { this.mapping = {}; this.render(); });
+        document.getElementById('imp-back-btn')?.addEventListener('click', () => this.reset());
+        document.getElementById('imp-confirm-btn')?.addEventListener('click', () => this.confirm());
+      },
+
+      async open(file) {
+        if (!requireTask('importing inventory')) { closeModal('import-modal'); return; }
+        try {
+          await this.load(file);
+        } catch (err) {
+          this.reset();
+          showToast(`Could not read ${file.name}: ${err.message}`, 'error');
+        }
+      }
+    };
+
+    // "1,200", " 12 ", "12.0" -> number; blank -> 0; text -> null
+    function toQty(v) {
+      if (v === null || v === undefined || String(v).trim() === '') return 0;
+      if (typeof v === 'number') return isFinite(v) ? v : null;
+      const n = Number(String(v).replace(/[,\s]/g, ''));
+      return isFinite(n) ? n : null;
+    }
+
     function normalizeRowsToItems(rows) {
       return (rows || []).map((r, idx) => {
         const lpn = String(r['pallet_no'] ?? r['Pallet LP'] ?? r['LPN'] ?? r['lpn'] ?? `ROW-${idx + 1}`).trim().toUpperCase();
         const sysLoc = String(r['location'] ?? r['loction'] ?? r['Location'] ?? r['Sys Location'] ?? r['storage_code'] ?? '').trim().toUpperCase();
         const itemId = String(r['item ID'] ?? r['Item ID'] ?? r['SKU'] ?? r['product_code'] ?? '').trim().toUpperCase();
         const itemName = String(r['Short Description'] ?? r['Item Description'] ?? r['Item Name'] ?? r['product_name'] ?? itemId).trim();
-        const sysActual = Number(r['Actual Stock'] ?? r['Sys Actual'] ?? r['System Qty'] ?? r['actual_qty'] ?? 0) || 0;
-        const sysAlloc = Number(r['Allocation'] ?? r['allocated_qty'] ?? 0) || 0;
-        const sysAvail = Number(r['Available Stock'] ?? r['Remaining'] ?? Math.max(0, sysActual - sysAlloc)) || 0;
+        const sysActual = toQty(r['Actual Stock'] ?? r['Sys Actual'] ?? r['System Qty'] ?? r['actual_qty'] ?? 0) || 0;
+        const sysAlloc = toQty(r['Allocation'] ?? r['allocated_qty'] ?? 0) || 0;
+        const availRaw = r['Available Stock'] ?? r['Remaining'];
+        const sysAvail = (availRaw === undefined || String(availRaw).trim() === '' ? Math.max(0, sysActual - sysAlloc) : toQty(availRaw)) || 0;
         const whId = String(r['Warehouse ID'] ?? r['warehouse_id'] ?? state.activeWarehouse).trim() || state.activeWarehouse;
 
         return {
@@ -2569,6 +3014,7 @@
     }
 
     function selectItemForCount(itemId) {
+      if (!requireTask('counting')) return;
       if (discardBlindDrafts(itemId)) renderAll();
       const item = state.items.find(i => i.id === itemId);
       if (!item) return;
@@ -2974,7 +3420,11 @@
       });
 
       // Top Toolbar Buttons
-      document.getElementById('open-import-btn')?.addEventListener('click', () => openModal('import-modal'));
+      document.getElementById('open-import-btn')?.addEventListener('click', () => {
+        if (!requireTask('importing inventory')) return;
+        ImportMapper.reset();
+        openModal('import-modal');
+      });
       document.getElementById('open-wms-btn')?.addEventListener('click', () => openModal('wms-modal'));
       document.getElementById('open-report-btn')?.addEventListener('click', () => {
         renderFinalReport();
@@ -3023,6 +3473,7 @@
         const inp = document.getElementById('lp-scan-input');
         const rawLp = (inp?.value || '').trim().toUpperCase();
         if (!rawLp) return;
+        if (!requireTask('counting')) return;
 
         let match = state.items.find(i => i.lpn === rawLp);
         if (!match) {
@@ -3124,6 +3575,7 @@
         e.preventDefault();
         const item = state.items.find(i => i.id === state.activeItemId);
         if (!item) return;
+        if (!requireTask('saving a count')) return;
 
         const physQty = Math.max(0, Number(document.getElementById('phys-qty-input')?.value || 0));
         const physLoc = (document.getElementById('phys-loc-input')?.value || item.sysLocation || '').trim().toUpperCase();
@@ -3185,6 +3637,7 @@
         e.preventDefault();
         const rawCode = (document.getElementById('nolp-item-input')?.value || '').trim().toUpperCase();
         if (!rawCode) return;
+        if (!requireTask('counting')) return;
         state.selectedNoLpItemCode = rawCode;
 
         const matching = state.items.filter(i => i.itemId === rawCode || i.barcode === rawCode || i.itemName.toUpperCase().includes(rawCode));
@@ -3219,6 +3672,7 @@
           showToast('Please scan an item barcode and enter location.', 'warn');
           return;
         }
+        if (!requireTask('counting')) return;
 
         let targetItem;
         if (linkId) {
@@ -3526,6 +3980,7 @@
 
       // Execute Paginated WMS Inventory Query
       document.getElementById('wms-live-fetch-btn')?.addEventListener('click', async () => {
+        if (!requireTask('pulling inventory')) { closeModal('wms-modal'); return; }
         const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
         if (archMode === 'DIRECT' && !authSession.token) {
           showToast('Please sign in to WMS in Step 1 first.', 'warn');
@@ -3600,42 +4055,8 @@
         activeFetchAbortController?.abort();
       });
 
-      // Import File Upload (.xls / .xlsx / .csv / .json)
-      document.getElementById('file-upload-input')?.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (!(await confirmBackupBeforeNewData(`Importing ${file.name}`))) {
-          e.target.value = '';
-          return;
-        }
-        try {
-          let rows = [];
-          if (file.name.toLowerCase().endsWith('.json')) {
-            const text = await file.text();
-            const parsed = JSON.parse(text);
-            rows = Array.isArray(parsed) ? parsed : (parsed.rows || parsed.data || []);
-          } else {
-            const buf = await file.arrayBuffer();
-            const wb = XLSX.read(buf, { type: 'array' });
-            const firstSheet = wb.Sheets[wb.SheetNames[0]];
-            rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-          }
-          const items = normalizeRowsToItems(rows);
-          if (!items.length) {
-            showToast('No valid inventory rows found in uploaded file.', 'warn');
-            return;
-          }
-          const kept = applyImportedItems(items, file.name, true);
-          if (!kept) return;
-          closeModal('import-modal');
-          showToast(`Loaded ${kept} rows for ${state.activeWarehouse} from ${file.name}`, 'success');
-          TaskService.uploadExpected();
-        } catch (err) {
-          showToast(`Failed to parse file: ${err.message}`, 'error');
-        } finally {
-          e.target.value = '';
-        }
-      });
+      // Import: file pick / drop, then drag-and-match columns
+      ImportMapper.bind();
 
       document.getElementById('download-template-xlsx-btn')?.addEventListener('click', () => {
         const wb = XLSX.utils.book_new();
@@ -3644,6 +4065,7 @@
       });
 
       document.getElementById('restore-sample-btn')?.addEventListener('click', async () => {
+        if (!requireTask('loading data')) { closeModal('import-modal'); return; }
         if (!(await confirmBackupBeforeNewData('Loading the sample data'))) return;
         applyImportedItems(normalizeRowsToItems(sampleRowsForActiveWarehouse()), 'stock_by_inventory Sample', true);
         closeModal('import-modal');
