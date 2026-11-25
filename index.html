@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.3';
+    window.CCP_BUILD = '2026-11-25.4';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -583,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.3</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.4</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -1235,6 +1235,42 @@
       return { known: listed.length > 0, listed, allowed };
     }
 
+    // Finds a token anywhere in a login reply (e.g. data.userInfo.token, result.token.accessToken),
+    // or any JWT-looking string, so a WMS change in reply shape doesn't break sign-in.
+    function findTokenDeep(obj, depth = 0) {
+      if (!obj || typeof obj !== 'object' || depth > 4) return '';
+      const keyRe = /^(token|accesstoken|access_token|jwt|authtoken|auth_token|authorization|id_token|bearer|sessionid|session_id|ticket)$/i;
+      for (const [k, v] of Object.entries(obj)) {
+        if (keyRe.test(k)) {
+          if (typeof v === 'string' && v.trim().length > 8) return v.trim();
+          if (v && typeof v === 'object') {
+            const inner = v.token || v.accessToken || v.access_token || v.value;
+            if (typeof inner === 'string' && inner.trim().length > 8) return inner.trim();
+          }
+        }
+      }
+      for (const v of Object.values(obj)) {
+        if (typeof v === 'string' && /^(Bearer\s+)?[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}$/.test(v.trim())) return v.trim();
+      }
+      for (const v of Object.values(obj)) {
+        if (v && typeof v === 'object') {
+          const t = findTokenDeep(v, depth + 1);
+          if (t) return t;
+        }
+      }
+      return '';
+    }
+
+    // Field names only (never values), for error messages: "code, message, data{token, user{...}}".
+    function describeShape(obj, depth = 0) {
+      if (!obj || typeof obj !== 'object') return '';
+      if (Array.isArray(obj)) return depth > 1 ? '[…]' : `[${describeShape(obj[0], depth + 1)}]`;
+      return Object.keys(obj).slice(0, 15).map(k => {
+        const v = obj[k];
+        return v && typeof v === 'object' && depth < 2 ? `${k}{${describeShape(v, depth + 1)}}` : k;
+      }).join(', ');
+    }
+
     function parseLoginPayload(raw, headers) {
       const topKeys = raw && typeof raw === 'object' ? Object.keys(raw) : [];
       const dataObj = (raw?.result && typeof raw.result === 'object') ? raw.result
@@ -1259,8 +1295,9 @@
       if (!token && typeof raw?.data === 'string' && raw.data.trim().length > 10) {
         token = raw.data.trim();
       }
+      if (!token) token = findTokenDeep(raw);
       if (!token && headers) {
-        const hdrAuth = headers.get?.('authorization') || headers.get?.('x-auth-token') || '';
+        const hdrAuth = headers.get?.('authorization') || headers.get?.('x-auth-token') || headers.get?.('token') || '';
         if (hdrAuth.trim()) token = hdrAuth.trim();
       }
       token = token.replace(/^Bearer\s+/i, '').trim();
@@ -1289,17 +1326,20 @@
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ username: cleanUser, password: cleanPass, client: 'web_client' })
           });
-          const raw = await res.json();
-          const bizCode = raw?.code;
-          const isBizErr = raw?.success === false || (typeof bizCode === 'number' && bizCode !== 200 && bizCode !== 0);
-          if (!res.ok || isBizErr) {
-            throw new Error(raw?.message || raw?.msg || `WMS login failed (HTTP ${res.status})`);
+          const text = await res.text();
+          let raw;
+          try { raw = JSON.parse(text); } catch (e) {
+            throw new Error(`WMS login reply was not JSON (HTTP ${res.status}): ${text.slice(0, 120)}`);
           }
           const parsed = parseLoginPayload(raw, res.headers);
-          if (!parsed.token) {
-            throw new Error(`HTTP 200 returned without token field. Keys: [${parsed.topKeys.join(', ')}]`);
+          // A token in the reply means the WMS signed us in, whatever its code field says.
+          if (res.ok && parsed.token) return parsed;
+          const msg = raw?.message || raw?.msg || raw?.error || '';
+          const saidOk = /success|成功|\bok\b/i.test(msg);
+          if (!res.ok || !saidOk) {
+            throw new Error(msg ? `WMS: ${msg}` : `WMS login failed (HTTP ${res.status})`);
           }
-          return parsed;
+          throw new Error(`WMS said "${msg}" but sent no token the app can use. Reply fields: ${describeShape(raw) || 'none'}. Send this message to support.`);
         };
 
         const attemptProxy = async () => {
