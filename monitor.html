@@ -5,77 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CycleCount Pro — Monitoring Center</title>
   <style>
+    /* Theme matches the Outbound Staging live dashboard: light by default, dark with the button, T key or ?theme=dark */
     :root {
-      --bg: #0b1120; --panel: #111827; --panel2: #1f2937; --line: #263244;
-      --text: #e5e7eb; --muted: #94a3b8; --accent: #6366f1; --ok: #10b981;
-      --warn: #f59e0b; --bad: #f43f5e; --info: #38bdf8;
-      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --bg: #e9edf2; --panel: #ffffff; --panel2: #f2f5f9; --panel3: #e1e7ee; --line: #cfd7e1; --row-line: #e4e9f0;
+      --text: #101828; --text2: #3d4a5c; --muted: #667085;
+      --accent: #1f6fd1; --accent-hover: #1a5fb4; --accent-text: #1559b0; --accent-soft: rgba(31, 111, 209, 0.12);
+      --ok: #12a150; --ok-text: #0e7c3e; --ok-soft: rgba(18, 161, 80, 0.12);
+      --warn: #f2a900; --warn-text: #8f5a00; --warn-soft: rgba(242, 169, 0, 0.16);
+      --bad: #d12c2c; --bad-text: #b42318; --bad-soft: rgba(209, 44, 44, 0.10);
+      --idle: #98a2b3; --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+      --header-bg: #10294a; --header-surface: #1b3a62; --header-line: #2f5384; --header-border: var(--accent);
+      --overlay: rgba(16, 24, 40, 0.55);
+      --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: "JetBrains Mono", "Consolas", "SFMono-Regular", ui-monospace, monospace;
+    }
+    body.dark {
+      --bg: #121211; --panel: #1a1a19; --panel2: #242422; --panel3: #2f2f2c; --line: #3d3d39; --row-line: #2b2b28;
+      --text: #f0efec; --text2: #c3c2b7; --muted: #8f8e86;
+      --accent: #3987e5; --accent-hover: #4d95ea; --accent-text: #9ec5f4; --accent-soft: rgba(57, 135, 229, 0.18);
+      --ok: #2fb86a; --ok-text: #7fd8a4; --ok-soft: rgba(47, 184, 106, 0.16);
+      --warn: #fab219; --warn-text: #fab219; --warn-soft: rgba(250, 178, 25, 0.16);
+      --bad: #d03b3b; --bad-text: #f3a5a5; --bad-soft: rgba(208, 59, 59, 0.18);
+      --idle: #6b6a64; --shadow: none;
+      --header-bg: #1a1a19; --header-surface: #242422; --header-line: #3d3d39; --header-border: #3d3d39;
+      --overlay: rgba(0, 0, 0, 0.7);
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
-    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+    .mono { font-family: var(--mono); }
     header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 20px;
-      background: #0f172a; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+      background: var(--header-bg); border-bottom: 4px solid var(--header-border); position: sticky; top: 0; z-index: 5;
+      /* the header keeps light-on-dark text in both themes */
+      --text: #ffffff; --text2: #c8d5e6; --muted: #9fb2ca; --panel2: var(--header-surface); --line: var(--header-line);
+      color: var(--text); }
     @media (max-width: 700px) { header { position: static; } }
-    header h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -0.01em; }
-    header h1 span { color: #818cf8; }
+    header h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: -0.01em; }
+    header h1 span { color: #fcd27a; }
     .spacer { flex: 1; }
     .muted { color: var(--muted); }
     .small { font-size: 12px; }
     select, input, button { font: inherit; color: inherit; }
     select, input[type=text], input[type=password] { background: var(--panel2); border: 1px solid var(--line);
-      border-radius: 10px; padding: 7px 10px; min-height: 36px; }
-    button { border: 0; border-radius: 10px; padding: 7px 12px; min-height: 36px; font-weight: 700; cursor: pointer;
+      border-radius: 8px; padding: 7px 10px; min-height: 36px; }
+    input[type=text]:focus, input[type=password]:focus, select:focus { outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft); }
+    header select { font-family: var(--mono); font-weight: 800; background: rgba(57, 135, 229, 0.16); color: #9ec5f4;
+      border-color: rgba(57, 135, 229, 0.45); }
+    header select option { background: var(--header-bg); color: #fff; }
+    button { border: 0; border-radius: 8px; padding: 7px 12px; min-height: 36px; font-weight: 700; cursor: pointer;
       background: var(--panel2); }
     button.primary { background: var(--accent); color: #fff; }
+    button.primary:hover { background: var(--accent-hover); }
     button.ghost { background: transparent; border: 1px solid var(--line); }
-    button.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; border-radius: 8px; }
+    button.ghost:hover { border-color: var(--muted); }
+    header button.ghost { background: var(--panel2); }
+    button.tiny { min-height: 28px; padding: 3px 8px; font-size: 12px; border-radius: 6px; }
     button:disabled { opacity: .5; cursor: default; }
+    .theme-btn { border-radius: 999px; font-size: 13px; color: var(--text2); }
     main { padding: 16px 20px 40px; display: grid; gap: 16px; }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
-    .kpi .label { font-size: 12px; color: var(--muted); font-weight: 600; }
-    .kpi .value { font-size: 28px; font-weight: 800; margin-top: 2px; }
+    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
+    .kpi .label { font-size: 12px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .kpi .value { font-size: 30px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
     .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
     @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-    .panel h2 { font-size: 14px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line);
-      display: flex; align-items: center; gap: 8px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+    .panel h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 8px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; }
     .panel h2 .count { color: var(--muted); font-weight: 600; }
     .panel .body { padding: 10px 14px; }
     .scroll { max-height: 420px; overflow: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 8px 10px;
       position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line); }
-    td { padding: 8px 10px; border-bottom: 1px solid #1b2535; vertical-align: top; }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--row-line); vertical-align: top; font-variant-numeric: tabular-nums; }
     td.num, th.num { text-align: right; }
     .task { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1.2fr) auto; gap: 8px 16px;
-      padding: 12px 14px; border-bottom: 1px solid #1b2535; align-items: center; }
+      padding: 12px 14px; border-bottom: 1px solid var(--row-line); align-items: center; }
     .task:last-child { border-bottom: 0; }
     @media (max-width: 700px) { .task { grid-template-columns: 1fr; } }
     .task .title { font-weight: 800; }
-    .bar { height: 10px; background: #1e293b; border-radius: 99px; overflow: hidden; }
+    .bar { height: 10px; background: var(--panel3); border-radius: 99px; overflow: hidden; }
     .bar > div { height: 100%; background: var(--ok); border-radius: 99px; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
-    .b-open { background: #1e3a8a55; color: #93c5fd; }
-    .b-prog { background: #06513f66; color: #6ee7b7; }
-    .b-done { background: #33415566; color: #cbd5e1; }
-    .b-cancel { background: #4c051955; color: #fda4af; }
-    .b-stalled { background: #78350f66; color: #fcd34d; }
-    .pos { color: var(--ok); } .neg { color: var(--bad); }
+    .b-open { background: var(--accent-soft); color: var(--accent-text); }
+    .b-prog { background: var(--ok-soft); color: var(--ok-text); }
+    .b-done { background: var(--panel3); color: var(--text2); }
+    .b-cancel { background: var(--bad-soft); color: var(--bad-text); }
+    .b-stalled { background: var(--warn-soft); color: var(--warn-text); }
+    .pos { color: var(--ok-text); } .neg { color: var(--bad-text); }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 99px; margin-right: 6px; vertical-align: middle; }
     .actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
     .empty { color: var(--muted); padding: 14px; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .overlay { position: fixed; inset: 0; background: #020617cc; display: flex; align-items: center; justify-content: center;
+    .overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center;
       padding: 16px; z-index: 20; }
     .overlay.hidden, .hidden { display: none !important; }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; }
-    .card h3 { margin: 0 0 6px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; width: 100%; max-width: 440px;
+      box-shadow: 0 20px 40px rgba(16, 24, 40, 0.18); }
+    .card h3 { margin: 0 0 6px; font-size: 20px; }
     .stack { display: grid; gap: 10px; }
-    .msg { padding: 9px 12px; border-radius: 10px; font-size: 13px; }
-    .msg.err { background: #4c0519aa; color: #fecdd3; }
-    .msg.ok { background: #064e3baa; color: #a7f3d0; }
+    .msg { padding: 9px 12px; border-radius: 8px; font-size: 13px; }
+    .msg.err { background: var(--bad-soft); color: var(--bad-text); }
+    .msg.ok { background: var(--ok-soft); color: var(--ok-text); }
     label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
     .err-banner { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 50; padding: 10px 12px; border-radius: 10px;
       background: #b91c1c; color: #fff; font: 12px/1.4 monospace; white-space: pre-wrap; }
@@ -132,6 +164,7 @@
       <button id="assign-btn" class="primary" type="button">+ Assign task</button>
       <button id="archive-btn" class="ghost" type="button" title="Move counts and closed tasks older than 90 days to the archive spreadsheet">Archive…</button>
       <button id="lock-btn" class="ghost" type="button" title="Forget the access code on this device">Lock</button>
+      <button id="theme-btn" class="ghost theme-btn" type="button" title="Switch light / dark (shortcut: T)">☾ Dark theme</button>
     </div>
     <div class="small muted" style="width:100%">Updated <span id="updated">—</span> · <span id="status-line"></span><span id="archive-line"></span></div>
   </header>
@@ -201,6 +234,33 @@
       });
     }
     function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+    // Light / dark theme, as on the Outbound Staging dashboard: button, T key, or ?theme=dark|light; remembered per screen.
+    var THEME_KEY = 'ccp_monitor_theme';
+    function applyTheme(theme) {
+      var dark = theme === 'dark';
+      document.body.classList.toggle('dark', dark);
+      var btn = document.getElementById('theme-btn');
+      if (btn) btn.textContent = dark ? '\u2600 Light theme' : '\u263E Dark theme';
+    }
+    function toggleTheme() {
+      var next = document.body.classList.contains('dark') ? 'light' : 'dark';
+      store(THEME_KEY, next);
+      applyTheme(next);
+    }
+    (function () {
+      var fromUrl = '';
+      try { fromUrl = (new URLSearchParams(location.search).get('theme') || '').toLowerCase(); } catch (e) { /* ignore */ }
+      if (fromUrl === 'dark' || fromUrl === 'light') store(THEME_KEY, fromUrl);
+      var saved = null;
+      try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
+      if (document.body) applyTheme(saved === 'dark' ? 'dark' : 'light');
+      else document.addEventListener('DOMContentLoaded', function () { applyTheme(saved === 'dark' ? 'dark' : 'light'); });
+    })();
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !e.altKey &&
+          !/input|textarea|select/i.test((e.target && e.target.tagName) || '')) toggleTheme();
+    });
     function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
 
     function ago(iso) {
@@ -467,7 +527,7 @@
       $('counters-count').textContent = '(' + list.length + ')';
       $('counters').innerHTML = list.length ? list.map(function (c) {
         var m = minutesSince(c.lastActivity);
-        var color = m <= 5 ? 'var(--ok)' : m <= STALL_MIN ? 'var(--warn)' : '#475569';
+        var color = m <= 5 ? 'var(--ok)' : m <= STALL_MIN ? 'var(--warn)' : 'var(--idle)';
         return '<tr><td><span class="dot" style="background:' + color + '"></span>' + esc(c.name) + '</td>' +
           '<td class="small">' + esc(c.warehouseId) + (c.customerNo ? ' · <span class="mono">' + esc(c.customerNo) + '</span>' : '') +
           (c.taskId ? '<div class="muted">' + esc(c.taskId) + '</div>' : '<div class="muted">no task</div>') + '</td>' +
@@ -648,6 +708,8 @@
       $('tasks').addEventListener('click', onTaskClick);
       $('assign-btn').addEventListener('click', openAssign);
       $('archive-btn').addEventListener('click', runArchive);
+      $('theme-btn').addEventListener('click', toggleTheme);
+      applyTheme(document.body.classList.contains('dark') ? 'dark' : 'light');
       $('assign-cancel').addEventListener('click', function () { $('assign').classList.add('hidden'); });
       $('assign-form').addEventListener('submit', submitAssign);
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
