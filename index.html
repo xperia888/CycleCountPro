@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.7';
+    window.CCP_BUILD = '2026-11-25.8';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -583,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.7</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.8</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -3324,7 +3324,17 @@
         return;
       }
 
-      tbody.innerHTML = filtered.map(item => {
+      // Drawing thousands of rows on every scan made a phone take seconds per scan:
+      // draw one page, keep the pallet being counted on it, and let the user page on.
+      const limit = state.ledgerLimit || LEDGER_PAGE_SIZE;
+      let shown = filtered.slice(0, limit);
+      if (state.activeItemId && !shown.some(i => i.id === state.activeItemId)) {
+        const active = filtered.find(i => i.id === state.activeItemId);
+        if (active) shown = [active, ...shown];
+      }
+      const hidden = filtered.length - shown.length;
+
+      tbody.innerHTML = shown.map(item => {
         const diff = item.counted ? ((item.actualQty ?? 0) - (item.sysActualQty || 0)) : null;
         const locChanged = item.counted && (item.actualLocation || item.sysLocation) !== item.sysLocation;
         const isActive = item.id === state.activeItemId;
@@ -3370,8 +3380,17 @@
             <td class="py-2.5 px-3 text-center">${statusBadge}</td>
           </tr>
         `;
-      }).join('');
+      }).join('') + (hidden > 0 ? `
+          <tr><td colspan="9" class="py-3 px-3 text-center text-xs text-slate-500">
+            Showing ${shown.length.toLocaleString()} of ${filtered.length.toLocaleString()} pallets ·
+            <button type="button" data-ledger-more class="font-bold text-sky-700 dark:text-sky-400 hover:underline">Show ${Math.min(LEDGER_PAGE_SIZE, hidden).toLocaleString()} more</button>
+            · or search above (search covers all pallets)
+          </td></tr>` : '');
     }
+    var LEDGER_PAGE_SIZE = 200;
+
+    // Rebuild the ledger page from the top whenever the filter or search changes.
+    function resetLedgerPaging() { state.ledgerLimit = LEDGER_PAGE_SIZE; }
 
     function populateNoLpCatalog() {
       const datalist = document.getElementById('sku-catalog-datalist');
@@ -3548,7 +3567,8 @@
       renderHeaderAndKPIs();
       renderQuickLpChips();
       renderLedgerTable();
-      populateNoLpCatalog();
+      // The No-LP lists hold one option per pallet: build them only while that mode is open.
+      if (state.scannerMode === 'NOLP') populateNoLpCatalog(); else state.noLpCatalogStale = true;
       updateAuthUi();
     }
 
@@ -3660,6 +3680,7 @@
 
       document.getElementById('mode-nolp-btn')?.addEventListener('click', () => {
         state.scannerMode = 'NOLP';
+        if (state.noLpCatalogStale !== false) { populateNoLpCatalog(); state.noLpCatalogStale = false; }
         document.getElementById('nolp-scanner-section')?.classList.remove('hidden');
         document.getElementById('lp-scanner-section')?.classList.add('hidden');
         document.getElementById('mode-nolp-btn').className = 'py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-purple-600 text-white shadow-sm transition min-h-[36px] truncate';
@@ -3944,13 +3965,24 @@
             t.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400';
           });
           tab.className = 'ledger-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-sky-700 dark:text-sky-400 shadow-sm';
+          resetLedgerPaging();
           renderLedgerTable();
         });
       });
 
-      document.getElementById('ledger-search-input')?.addEventListener('input', renderLedgerTable);
+      // Search re-filters 5,000 pallets: wait for a short pause in typing.
+      let ledgerSearchTimer = null;
+      document.getElementById('ledger-search-input')?.addEventListener('input', () => {
+        clearTimeout(ledgerSearchTimer);
+        ledgerSearchTimer = setTimeout(() => { resetLedgerPaging(); renderLedgerTable(); }, 150);
+      });
 
       document.getElementById('ledger-tbody')?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-ledger-more]')) {
+          state.ledgerLimit = (state.ledgerLimit || LEDGER_PAGE_SIZE) + LEDGER_PAGE_SIZE;
+          renderLedgerTable();
+          return;
+        }
         const copyBtn = e.target.closest('[data-copy-text]');
         if (copyBtn) {
           e.stopPropagation();
