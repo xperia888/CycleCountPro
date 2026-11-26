@@ -36,43 +36,46 @@
     .mono { font-family: var(--mono); }
 
     /* ---------- Header: brand | KPI tiles | clock (as on the Outbound dashboard) ---------- */
-    header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px;
-      padding: 14px 24px; background: var(--header-bg); border-bottom: 4px solid var(--header-border);
+    header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;
+      padding: 10px 20px; background: var(--header-bg); border-bottom: 4px solid var(--header-border);
       position: sticky; top: 0; z-index: 5;
       --text: #ffffff; --text2: #cbd5e1; --muted: #94a3b8; --panel2: var(--header-surface); --panel3: var(--header-surface-3);
       --line: var(--header-line); --bad: #f87171; --warn: #fbbf24; color: var(--text); }
     .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
-    .brand-mark { width: 52px; height: 52px; border-radius: 12px; flex: none; background: var(--brand); color: #020617;
+    .brand-mark { width: 44px; height: 44px; border-radius: 12px; flex: none; background: var(--brand); color: #020617;
       display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
-    .brand-mark svg { width: 30px; height: 30px; }
+    .brand-mark svg { width: 26px; height: 26px; }
     .brand-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-    .brand h1 { font-size: 24px; margin: 0; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+    .brand h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
     .brand h1 span { color: var(--brand); }
-    .brand .sub { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text2); flex-wrap: wrap; }
-    .wh-chip { font-family: var(--mono); font-weight: 800; font-size: 14px; padding: 3px 8px; border-radius: 6px; min-height: 0;
+    .brand .sub { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); flex-wrap: wrap; }
+    .wh-chip { font-family: var(--mono); font-weight: 800; font-size: 13px; padding: 2px 6px; border-radius: 6px; min-height: 0;
       background: rgba(14, 165, 233, 0.2); color: #7dd3fc; border: 1px solid rgba(14, 165, 233, 0.4); cursor: pointer; }
     .wh-chip option { background: #0f172a; color: #fff; }
     .theme-btn { display: inline-flex; align-items: center; gap: 6px; font: 700 13px var(--font); color: var(--text2);
       background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; min-height: 0; cursor: pointer; }
     .theme-btn:hover { color: var(--text); border-color: var(--muted); }
-    .kpis { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
-    .kpi { min-width: 128px; padding: 8px 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); }
-    .kpi .label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
-    .kpi .value { font-size: 32px; font-weight: 800; line-height: 1.05; margin-top: 2px; font-variant-numeric: tabular-nums; }
-    .kpi .meter { height: 6px; border-radius: 3px; background: var(--panel3); margin-top: 6px; overflow: hidden; }
+    .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; min-width: 0; max-width: 900px; justify-self: center; width: 100%; }
+    .kpi { min-width: 0; padding: 6px 10px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); }
+    .kpi .label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi .value { font-size: 26px; font-weight: 800; line-height: 1.05; margin-top: 1px; font-variant-numeric: tabular-nums; }
+    .kpi .meter { height: 4px; border-radius: 2px; background: var(--panel3); margin-top: 3px; overflow: hidden; }
     .kpi .meter > i { display: block; height: 100%; width: 0; background: var(--brand); border-radius: 3px; transition: width .4s; }
     .kpi.alert .value { color: var(--bad); }
     .kpi.warn .value { color: var(--warn); }
     .clock { text-align: right; }
-    .clock .time { font-size: 38px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-    .clock .date { font-size: 14px; color: var(--text2); margin-top: 4px; }
-    .sync { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--text2); }
+    .clock .time { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .clock .date { font-size: 12px; color: var(--text2); margin-top: 2px; white-space: nowrap; }
+    .sync { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; white-space: nowrap; color: var(--text2); }
     .sync .sdot { width: 10px; height: 10px; border-radius: 50%; background: #10b981; }
     .sync.stale .sdot { background: #fbbf24; }
     .sync.error .sdot { background: #ef4444; }
-    @media (max-width: 1500px) { header { grid-template-columns: 1fr auto; row-gap: 14px; }
-      header .kpis { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
-      header .kpi { min-width: 0; } }
+    /* Laptops: drop the subtitle and the theme button's words to keep one row */
+    @media (max-width: 1600px) { .brand .subtitle { display: none; } .theme-btn .tb-word { display: none; } }
+    @media (max-width: 1300px) { .brand h1 { font-size: 18px; } .kpi .value { font-size: 22px; } .kpi .label { font-size: 10px; } .clock .time { font-size: 26px; } }
+    /* Narrow screens: KPI tiles move to their own full-width row */
+    @media (max-width: 1150px) { header { grid-template-columns: 1fr auto; row-gap: 10px; }
+      header .kpis { grid-column: 1 / -1; grid-row: 2; max-width: none; } }
     @media (max-width: 700px) {
       header { position: static; display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
       .clock { order: -1; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; text-align: left; }
@@ -154,6 +157,7 @@
 <body>
   <!-- Access code gate -->
   <div id="gate" class="overlay">
+  <script>try { if (localStorage.getItem('ccp_monitor_code_v1')) document.getElementById('gate').classList.add('hidden'); } catch (e) {}</script>
     <form id="gate-form" class="card stack" autocomplete="off">
       <div>
         <h3>CycleCount Pro — Monitoring Center</h3>
@@ -202,18 +206,18 @@
             <option value="ONUS-ONT">ONUS-ONT</option>
             <option value="ONUS-Chino">ONUS-Chino</option>
           </select>
-          <span>Count tasks &amp; variances</span>
-          <button id="theme-btn" class="theme-btn" type="button" title="Switch light / dark (shortcut: T)">☾ Dark theme</button>
+          <span class="subtitle">Count tasks &amp; variances</span>
+          <button id="theme-btn" class="theme-btn" type="button" title="Switch light / dark (shortcut: T)">☾<span class="tb-word"> Dark theme</span></button>
         </div>
       </div>
     </div>
     <div class="kpis">
       <div class="kpi"><div class="label">Active tasks</div><div class="value" id="k-active">–</div></div>
-      <div class="kpi"><div class="label">Pallets counted</div><div class="value" id="k-counted">–</div></div>
+      <div class="kpi" title="Pallets counted in active tasks"><div class="label">Counted</div><div class="value" id="k-counted">–</div></div>
       <div class="kpi"><div class="label">Progress</div><div class="value" id="k-progress">–</div><div class="meter"><i id="k-progress-bar"></i></div></div>
-      <div class="kpi"><div class="label">Counters active</div><div class="value" id="k-counters">–</div></div>
+      <div class="kpi" title="Counters active in the last 15 minutes"><div class="label">Counters</div><div class="value" id="k-counters">–</div></div>
       <div class="kpi alert"><div class="label">Variances</div><div class="value" id="k-var">–</div></div>
-      <div class="kpi warn"><div class="label">Double-counted</div><div class="value" id="k-dup">–</div></div>
+      <div class="kpi warn" title="Pallets counted more than once"><div class="label">Doubles</div><div class="value" id="k-dup">–</div></div>
     </div>
     <div class="clock">
       <div class="time" id="clock-time">--:--</div>
@@ -296,7 +300,7 @@
       var dark = theme === 'dark';
       document.body.classList.toggle('dark', dark);
       var btn = document.getElementById('theme-btn');
-      if (btn) btn.textContent = dark ? '\u2600 Light theme' : '\u263E Dark theme';
+      if (btn) btn.innerHTML = dark ? '\u2600<span class="tb-word"> Light theme</span>' : '\u263E<span class="tb-word"> Dark theme</span>';
     }
     function toggleTheme() {
       var next = document.body.classList.contains('dark') ? 'light' : 'dark';
@@ -400,12 +404,30 @@
       setTimeout(function () { $('gate-code').focus(); }, 50);
     }
 
-    function unlock(code, remember) {
+    // fromSaved: the code was remembered on this device. Then the code window stays
+    // hidden while connecting, and the code is only forgotten when the server rejects it;
+    // a slow or failed connection just retries.
+    function unlock(code, remember, fromSaved) {
       $('gate-btn').disabled = true;
+      var connectionTrouble = function (msg) {
+        mon.code = code;
+        $('gate').classList.add('hidden');
+        $('dash').classList.remove('hidden');
+        $('status-line').textContent = 'Cannot reach the backend: ' + msg + ' (retrying)';
+        mon.syncError = true; renderSync();
+        startTimer();
+        if (!$('f-auto').checked) setTimeout(refresh, REFRESH_MS);
+      };
       return server('getMonitorData', { code: code }).then(function (res) {
         if (!res || !res.ok) {
-          if (remember !== null) store(CODE_KEY, null);
-          showGate(res && res.error ? res.error : 'Could not open the monitor.');
+          if (res && res.authError) {
+            store(CODE_KEY, null); mon.code = '';
+            showGate(res.error || 'Access code not accepted.');
+          } else if (fromSaved) {
+            connectionTrouble(res && res.error ? res.error : 'unknown error');
+          } else {
+            showGate(res && res.error ? res.error : 'Could not open the monitor.');
+          }
           return;
         }
         if (!Array.isArray(res.tasks)) { showGate(OUTDATED_MSG); return; }
@@ -417,7 +439,8 @@
         render(res);
         startTimer();
       }).catch(function (err) {
-        showGate(err.message);
+        if (fromSaved) connectionTrouble(err.message);
+        else showGate(err.message);
       }).then(function () { $('gate-btn').disabled = false; });
     }
 
@@ -798,8 +821,16 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
 
       var saved = load(CODE_KEY);
-      if (saved) unlock(saved, true);
-      else showGate('');
+      if (saved) {
+        // Remembered code: go straight to the dashboard while it connects.
+        mon.code = saved;
+        $('gate').classList.add('hidden');
+        $('dash').classList.remove('hidden');
+        renderSync();
+        unlock(saved, true, true);
+      } else {
+        showGate('');
+      }
     });
   </script>
 </body>
