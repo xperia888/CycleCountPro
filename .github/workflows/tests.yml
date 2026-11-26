@@ -1,0 +1,49 @@
+# 每次推送到 main、每次提 PR 时自动跑测试。
+# 也可以在 Actions 页面手动点 "Run workflow" 触发。
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: 语法检查和网页打开测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Code.gs 是 JavaScript，复制成 .js 后用 node 检查有没有语法错误
+      - name: Code.gs syntax check
+        run: |
+          cp Code.gs "$RUNNER_TEMP/Code.js"
+          node --check "$RUNNER_TEMP/Code.js"
+
+      # 测试脚本直接用 GitHub 机器上自带的 /usr/bin/google-chrome
+      - name: Install Playwright
+        run: pip install playwright
+
+      # 用 Chrome 打开 index.html 和 monitor.html（电视、笔记本、手机三种尺寸），
+      # 有 JavaScript 报错或页面空白就失败
+      - name: Page smoke test
+        run: python3 tests/smoke_check.py
+
+      # 不管成功还是失败，都把截图存下来，在这次运行页面最下方的 Artifacts 下载
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tests/out/
+          retention-days: 14
