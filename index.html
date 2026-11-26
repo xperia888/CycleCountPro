@@ -18,7 +18,7 @@
   </script>
   <script>
     // Startup diagnostics: show any script error on screen (no console on PDAs / Apps Script).
-    window.CCP_BUILD = '2026-11-25.6';
+    window.CCP_BUILD = '2026-11-25.7';
     window.__ccpShowError = function (msg) {
       try {
         var box = document.getElementById('ccp-error-banner');
@@ -583,7 +583,7 @@
       </div>
     </div>
   </main>
-  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.6</span></div>
+  <div class="text-center text-[10px] text-slate-400 py-1 no-print">CycleCount Pro build <span id="ccp-build-label">2026-11-25.7</span></div>
 
   <!-- ======================================================================= -->
   <!-- COUNT TASK PICKER: assigned / open tasks, or create your own               -->
@@ -2386,8 +2386,43 @@
         return { rows, lastRow };
       },
 
+      // The WMS answers inventory queries for the account's *current* warehouse and ignores
+      // wh_no in the query. Its own website switches warehouse with
+      // POST /api/user/update/warehouse {wh_no}; do the same before every pull.
+      async switchWmsWarehouse(whId, signal) {
+        const archMode = document.getElementById('wms-arch-mode')?.value || 'DIRECT';
+        if (archMode !== 'DIRECT' || !authSession.token || !whId) return { skipped: true };
+        const base = (document.getElementById('wms-base-url')?.value || 'https:\/\/prd-onus.target-ai.com:18890').trim().replace(/\/+$/, '');
+        const url = `${base}/api/user/update/warehouse`;
+        let res;
+        try {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', Authorization: `Bearer ${authSession.token}` },
+            credentials: 'omit',
+            body: JSON.stringify({ wh_no: whId }),
+            signal
+          });
+        } catch (err) {
+          if (err.name === 'AbortError') throw err;
+          throw wmsUnreachableError(url);
+        }
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* not JSON */ }
+        const bizErr = data && (data.success === false || data.result?.success === false ||
+          (typeof data.code === 'number' && data.code !== 200 && data.code !== 0));
+        if (!res.ok || bizErr) {
+          const why = data?.message || data?.msg || data?.result?.message || `HTTP ${res.status}`;
+          const err = new Error(`WMS would not switch this account to ${whId}: ${why}. Check that the account has access to ${whId} in WMS.`);
+          err.httpStatus = res.status;
+          throw err;
+        }
+        return { switched: true };
+      },
+
       async fetchAllPages(onProgress, signal) {
         const pageSize = 500;
+        await this.switchWmsWarehouse(this.getSelectedWarehouseId(), signal);
         const firstPayload = this.buildPayload(0, pageSize);
         const firstData = await this.postQuery(firstPayload, signal);
         const { rows: firstRows, lastRow } = this.extractRowsAndTotal(firstData);
